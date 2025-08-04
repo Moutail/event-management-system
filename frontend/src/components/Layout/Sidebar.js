@@ -16,6 +16,7 @@ import {
   Dashboard as DashboardIcon,
   Person as PersonIcon,
   Settings as SettingsIcon,
+  Bookmark as BookmarkIcon,
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -28,6 +29,7 @@ const menuItems = [
   { text: 'Événements', icon: <EventIcon />, path: '/events' },
   { text: 'Créer un événement', icon: <AddIcon />, path: '/create-event' },
   { text: 'Mes événements', icon: <EventIcon />, path: '/my-events' },
+  { text: 'Mes inscriptions', icon: <BookmarkIcon />, path: '/my-registrations' },
   { text: 'Tableau de bord', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Mon profil', icon: <PersonIcon />, path: '/profile' },
 ];

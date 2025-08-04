@@ -120,14 +120,14 @@ class Event(models.Model):
     @property
     def is_full(self):
         """Vérifie si l'événement est complet"""
-        if self.place_type == 'unlimited':
+        if self.place_type == 'unlimited' or self.max_capacity is None:
             return False
         return self.current_registrations >= self.max_capacity
 
     @property
     def available_places(self):
         """Retourne le nombre de places disponibles"""
-        if self.place_type == 'unlimited':
+        if self.place_type == 'unlimited' or self.max_capacity is None:
             return None
         return max(0, self.max_capacity - self.current_registrations)
 

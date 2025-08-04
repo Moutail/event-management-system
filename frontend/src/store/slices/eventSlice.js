@@ -195,6 +195,55 @@ export const fetchEventStatistics = createAsyncThunk(
   }
 );
 
+// Actions pour les inscriptions aux événements
+export const registerForEvent = createAsyncThunk(
+  'events/registerForEvent',
+  async (registrationData, { rejectWithValue }) => {
+    try {
+      const response = await eventAPI.registerForEvent(registrationData.event, registrationData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error, 'Erreur d\'inscription à l\'événement'));
+    }
+  }
+);
+
+export const fetchMyRegistrations = createAsyncThunk(
+  'events/fetchMyRegistrations',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await eventAPI.getMyRegistrations();
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error, 'Erreur de récupération de vos inscriptions'));
+    }
+  }
+);
+
+export const cancelRegistration = createAsyncThunk(
+  'events/cancelRegistration',
+  async (registrationId, { rejectWithValue }) => {
+    try {
+      const response = await eventAPI.cancelRegistration(registrationId);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error, 'Erreur d\'annulation de l\'inscription'));
+    }
+  }
+);
+
+export const fetchUpcomingRegistrations = createAsyncThunk(
+  'events/fetchUpcomingRegistrations',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await eventAPI.getUpcomingRegistrations();
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error, 'Erreur de récupération des inscriptions à venir'));
+    }
+  }
+);
+
 // Actions pour les catégories et tags
 export const fetchCategories = createAsyncThunk(
   'events/fetchCategories',
@@ -232,6 +281,11 @@ const initialState = {
   categories: [],
   tags: [],
   statistics: null,
+  // États pour les inscriptions
+  myRegistrations: [],
+  upcomingRegistrations: [],
+  registrationLoading: false,
+  registrationError: null,
   loading: false,
   error: null,
   filters: {
@@ -421,6 +475,78 @@ const eventSlice = createSlice({
       // Tags
       .addCase(fetchTags.fulfilled, (state, action) => {
         state.tags = action.payload;
+      })
+      
+      // Register for Event
+      .addCase(registerForEvent.pending, (state) => {
+        state.registrationLoading = true;
+        state.registrationError = null;
+      })
+      .addCase(registerForEvent.fulfilled, (state, action) => {
+        state.registrationLoading = false;
+        // Mettre à jour l'événement courant si c'est le même
+        if (state.currentEvent && state.currentEvent.id === action.payload.event) {
+          state.currentEvent = {
+            ...state.currentEvent,
+            current_registrations: state.currentEvent.current_registrations + 1
+          };
+        }
+      })
+      .addCase(registerForEvent.rejected, (state, action) => {
+        state.registrationLoading = false;
+        state.registrationError = action.payload;
+      })
+      
+      // Fetch My Registrations
+      .addCase(fetchMyRegistrations.pending, (state) => {
+        state.registrationLoading = true;
+        state.registrationError = null;
+      })
+      .addCase(fetchMyRegistrations.fulfilled, (state, action) => {
+        state.registrationLoading = false;
+        state.myRegistrations = action.payload;
+      })
+      .addCase(fetchMyRegistrations.rejected, (state, action) => {
+        state.registrationLoading = false;
+        state.registrationError = action.payload;
+      })
+      
+      // Cancel Registration
+      .addCase(cancelRegistration.pending, (state) => {
+        state.registrationLoading = true;
+        state.registrationError = null;
+      })
+      .addCase(cancelRegistration.fulfilled, (state, action) => {
+        state.registrationLoading = false;
+        // Mettre à jour la liste des inscriptions
+        state.myRegistrations = state.myRegistrations.map(reg => 
+          reg.id === action.payload.id ? action.payload : reg
+        );
+        // Mettre à jour l'événement courant si c'est le même
+        if (state.currentEvent && state.currentEvent.id === action.payload.event) {
+          state.currentEvent = {
+            ...state.currentEvent,
+            current_registrations: Math.max(0, state.currentEvent.current_registrations - 1)
+          };
+        }
+      })
+      .addCase(cancelRegistration.rejected, (state, action) => {
+        state.registrationLoading = false;
+        state.registrationError = action.payload;
+      })
+      
+      // Fetch Upcoming Registrations
+      .addCase(fetchUpcomingRegistrations.pending, (state) => {
+        state.registrationLoading = true;
+        state.registrationError = null;
+      })
+      .addCase(fetchUpcomingRegistrations.fulfilled, (state, action) => {
+        state.registrationLoading = false;
+        state.upcomingRegistrations = action.payload;
+      })
+      .addCase(fetchUpcomingRegistrations.rejected, (state, action) => {
+        state.registrationLoading = false;
+        state.registrationError = action.payload;
       });
   },
 });

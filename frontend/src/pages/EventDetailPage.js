@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Container,
   Typography,
@@ -14,21 +14,79 @@ import {
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
-import { fetchEventById } from '../store/slices/eventSlice';
+import { 
+  fetchEventById, 
+  registerForEvent, 
+  cancelRegistration,
+  fetchMyRegistrations
+} from '../store/slices/eventSlice';
 import { formatDate, formatPrice, getImageUrl } from '../services/api';
+import RegistrationModal from '../components/RegistrationModal';
 
 const EventDetailPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { id } = useParams();
-  const { currentEvent, loading } = useSelector((state) => state.events);
+  const { 
+    currentEvent, 
+    loading, 
+    myRegistrations, 
+    registrationLoading, 
+    registrationError 
+  } = useSelector((state) => state.events);
   const { user } = useSelector((state) => state.auth);
+
+  // Vérifier si l'utilisateur est inscrit à cet événement
+  const userRegistration = Array.isArray(myRegistrations) ? myRegistrations.find(reg => reg.event === parseInt(id)) : null;
+  
+  // État pour le modal d'inscription
+  const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
       dispatch(fetchEventById(id));
     }
   }, [dispatch, id]);
+
+  // Charger les inscriptions de l'utilisateur si connecté
+  useEffect(() => {
+    if (user) {
+      dispatch(fetchMyRegistrations());
+    }
+  }, [dispatch, user]);
+
+  // Fonction pour ouvrir le modal d'inscription
+  const handleRegisterClick = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    setRegistrationModalOpen(true);
+  };
+
+  // Fonction pour fermer le modal d'inscription
+  const handleRegistrationModalClose = () => {
+    setRegistrationModalOpen(false);
+    // Recharger l'événement et les inscriptions pour mettre à jour les informations
+    dispatch(fetchEventById(id));
+    if (user) {
+      dispatch(fetchMyRegistrations());
+    }
+  };
+
+  // Fonction pour annuler une inscription
+  const handleCancelRegistration = async () => {
+    if (!userRegistration) return;
+
+    try {
+      await dispatch(cancelRegistration(userRegistration.id)).unwrap();
+      
+      // Recharger l'événement pour mettre à jour les informations
+      dispatch(fetchEventById(id));
+    } catch (error) {
+      console.error('Erreur lors de l\'annulation:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -106,15 +164,56 @@ const EventDetailPage = () => {
                 </Box>
               )}
 
-              <Button
-                variant="contained"
-                fullWidth
-                size="large"
-                sx={{ mb: 2 }}
-                disabled={currentEvent.is_full}
-              >
-                {currentEvent.is_full ? 'Complet' : 'S\'inscrire'}
-              </Button>
+              {!user ? (
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="large"
+                  sx={{ mb: 2 }}
+                  onClick={() => navigate('/login')}
+                >
+                  Se connecter pour s'inscrire
+                </Button>
+              ) : userRegistration ? (
+                <Box sx={{ mb: 2 }}>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    fullWidth
+                    size="large"
+                    onClick={handleCancelRegistration}
+                    disabled={registrationLoading}
+                    sx={{ mb: 1 }}
+                  >
+                    {registrationLoading ? 'Annulation...' : 'Annuler l\'inscription'}
+                  </Button>
+                  <Typography variant="body2" color="success.main" textAlign="center">
+                    ✓ Vous êtes inscrit à cet événement
+                  </Typography>
+                  {userRegistration.status && (
+                    <Typography variant="body2" color="text.secondary" textAlign="center">
+                      Statut: {userRegistration.status}
+                    </Typography>
+                  )}
+                </Box>
+              ) : (
+                <Button
+                  variant="contained"
+                  fullWidth
+                  size="large"
+                  sx={{ mb: 2 }}
+                  onClick={handleRegisterClick}
+                  disabled={currentEvent.is_full}
+                >
+                  {currentEvent.is_full ? 'Complet' : 'S\'inscrire'}
+                </Button>
+              )}
+
+              {registrationError && (
+                <Typography variant="body2" color="error" textAlign="center" sx={{ mb: 2 }}>
+                  {registrationError}
+                </Typography>
+              )}
 
               {user && currentEvent.organizer.id === user.id && (
                 <Button
@@ -234,6 +333,13 @@ const EventDetailPage = () => {
           </Grid>
         )}
       </Grid>
+
+      {/* Modal d'inscription */}
+      <RegistrationModal
+        open={registrationModalOpen}
+        onClose={handleRegistrationModalClose}
+        event={currentEvent}
+      />
     </Container>
   );
 };

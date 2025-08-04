@@ -23,6 +23,7 @@ import EventDetailPage from './pages/EventDetailPage';
 import CreateEventPage from './pages/CreateEventPage';
 import EditEventPage from './pages/EditEventPage';
 import MyEventsPage from './pages/MyEventsPage';
+import MyRegistrationsPage from './pages/MyRegistrationsPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -103,6 +104,7 @@ function App() {
           <Route path="create-event" element={<CreateEventPage />} />
           <Route path="edit-event/:id" element={<EditEventPage />} />
           <Route path="my-events" element={<MyEventsPage />} />
+          <Route path="my-registrations" element={<MyRegistrationsPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>

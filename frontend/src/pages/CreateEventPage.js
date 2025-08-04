@@ -35,6 +35,7 @@ const CreateEventPage = () => {
   const { categories, tags, loading, error } = useSelector((state) => state.events);
   const [selectedTags, setSelectedTags] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
 
   const {
     control,
@@ -99,6 +100,10 @@ const CreateEventPage = () => {
       
       console.log('✅ Image valide sélectionnée');
       
+      // Stocker le fichier dans le state
+      setSelectedImageFile(file);
+      console.log('✅ Fichier stocké dans le state');
+      
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
@@ -111,6 +116,7 @@ const CreateEventPage = () => {
     } else {
       console.log('❌ Aucun fichier sélectionné');
       setImagePreview(null);
+      setSelectedImageFile(null);
     }
   };
 
@@ -156,9 +162,14 @@ const CreateEventPage = () => {
     });
 
     // Ajouter l'image si sélectionnée
-    const imageFile = document.getElementById('poster-input').files[0];
     console.log('=== DEBUG: Image ===');
-    console.log('Image trouvée:', imageFile);
+    console.log('Image du state:', selectedImageFile);
+    console.log('Image de l\'input:', document.getElementById('poster-input').files[0]);
+    
+    // Utiliser l'image du state plutôt que de l'input
+    const imageFile = selectedImageFile || document.getElementById('poster-input').files[0];
+    console.log('Image finale utilisée:', imageFile);
+    
     if (imageFile) {
       console.log('Nom de l\'image:', imageFile.name);
       console.log('Type de l\'image:', imageFile.type);

@@ -36,6 +36,7 @@ const EditEventPage = () => {
   const { currentEvent, categories, tags, loading, error } = useSelector((state) => state.events);
   const [selectedTags, setSelectedTags] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
 
   const {
     control,
@@ -112,12 +113,48 @@ const EditEventPage = () => {
 
   const handleImageChange = (event) => {
     const file = event.target.files[0];
+    console.log('=== DEBUG: EditEventPage handleImageChange ===');
+    console.log('Fichier sélectionné:', file);
+    
     if (file) {
+      console.log('Nom du fichier:', file.name);
+      console.log('Type du fichier:', file.type);
+      console.log('Taille du fichier:', file.size);
+      
+      // Vérifier que c'est bien une image
+      if (!file.type.startsWith('image/')) {
+        console.error('❌ Le fichier sélectionné n\'est pas une image');
+        alert('Veuillez sélectionner un fichier image valide (JPEG, PNG, GIF, etc.)');
+        return;
+      }
+      
+      // Vérifier la taille (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        console.error('❌ Le fichier est trop volumineux');
+        alert('Le fichier est trop volumineux. Taille maximale : 5MB');
+        return;
+      }
+      
+      console.log('✅ Image valide sélectionnée');
+      
+      // Stocker le fichier dans le state
+      setSelectedImageFile(file);
+      console.log('✅ Fichier stocké dans le state');
+      
+      // Créer l'aperçu
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
+        console.log('✅ Aperçu de l\'image généré');
+      };
+      reader.onerror = () => {
+        console.error('❌ Erreur lors de la lecture du fichier');
       };
       reader.readAsDataURL(file);
+    } else {
+      console.log('❌ Aucun fichier sélectionné');
+      setImagePreview(null);
+      setSelectedImageFile(null);
     }
   };
 
@@ -130,6 +167,10 @@ const EditEventPage = () => {
   };
 
   const onSubmit = async (data) => {
+    console.log('=== DEBUG: EditEventPage onSubmit ===');
+    console.log('Données:', data);
+    console.log('Tags sélectionnés:', selectedTags);
+    
     const formData = new FormData();
     
     // Ajouter les champs de base
@@ -137,6 +178,16 @@ const EditEventPage = () => {
       if (data[key] !== null && data[key] !== undefined) {
         if (key === 'start_date' || key === 'end_date') {
           formData.append(key, data[key].toISOString());
+        } else if (key === 'category') {
+          // Convertir category en category_id, ignorer si vide
+          if (data[key] && data[key] !== '') {
+            formData.append('category_id', data[key]);
+          }
+        } else if (key === 'max_capacity') {
+          // Ne pas envoyer max_capacity si place_type est unlimited
+          if (data['place_type'] === 'limited' && data[key] && data[key] !== '') {
+            formData.append(key, data[key]);
+          }
         } else {
           formData.append(key, data[key]);
         }
@@ -149,16 +200,55 @@ const EditEventPage = () => {
     });
 
     // Ajouter l'image si sélectionnée
-    const imageFile = document.getElementById('poster-input').files[0];
+    console.log('=== DEBUG: Image ===');
+    console.log('Image du state:', selectedImageFile);
+    console.log('Image de l\'input:', document.getElementById('poster-input').files[0]);
+    
+    // Utiliser l'image du state plutôt que de l'input
+    const imageFile = selectedImageFile || document.getElementById('poster-input').files[0];
+    console.log('Image finale utilisée:', imageFile);
+    
     if (imageFile) {
+      console.log('Nom de l\'image:', imageFile.name);
+      console.log('Type de l\'image:', imageFile.type);
+      console.log('Taille de l\'image:', imageFile.size);
+      
+      // Vérifier que c'est bien une image
+      if (!imageFile.type.startsWith('image/')) {
+        console.error('❌ Le fichier n\'est pas une image valide');
+        alert('Veuillez sélectionner un fichier image valide');
+        return;
+      }
+      
       formData.append('poster', imageFile);
+      console.log('✅ Image ajoutée au FormData');
+      
+      // Vérifier que l'image a bien été ajoutée
+      const formDataEntries = Array.from(formData.entries());
+      const posterEntry = formDataEntries.find(([key]) => key === 'poster');
+      if (posterEntry) {
+        console.log('✅ Image confirmée dans FormData:', posterEntry[1].name);
+      } else {
+        console.error('❌ Image non trouvée dans FormData');
+      }
+    } else {
+      console.log('❌ Aucune image trouvée');
+    }
+
+    console.log('=== DEBUG: Contenu du FormData ===');
+    for (let [key, value] of formData.entries()) {
+      console.log(`${key}: ${value}`);
     }
 
     try {
+      console.log('Envoi de la requête de mise à jour...');
       await dispatch(updateEvent({ id, eventData: formData })).unwrap();
+      console.log('✅ Mise à jour réussie');
       navigate(`/events/${id}`);
     } catch (error) {
-      console.error('Erreur lors de la mise à jour:', error);
+      console.error('❌ Erreur lors de la mise à jour:', error);
+      console.error('Détails de l\'erreur:', error.response?.data);
+      console.error('Status:', error.response?.status);
     }
   };
 
