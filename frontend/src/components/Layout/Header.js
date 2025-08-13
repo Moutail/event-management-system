@@ -98,11 +98,11 @@ const Header = () => {
             Événements
           </Button>
 
-          <Button
-            color="inherit"
-            onClick={() => navigate('/create-event')}
-          >
+          <Button color="inherit" onClick={() => navigate('/create-event')}>
             Créer un événement
+          </Button>
+          <Button color="inherit" onClick={() => navigate('/scan')}>
+            Scanner billets
           </Button>
 
           <IconButton

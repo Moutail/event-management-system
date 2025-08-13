@@ -182,11 +182,7 @@ const DashboardPage = () => {
               <Typography variant="h6" component="h2">
                 Mes événements récents
               </Typography>
-              <Button
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={() => navigate('/events/create')}
-              >
+              <Button size="small" startIcon={<AddIcon />} onClick={() => navigate('/create-event')}>
                 Créer
               </Button>
             </Box>
@@ -246,7 +242,7 @@ const DashboardPage = () => {
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
-                  onClick={() => navigate('/events/create')}
+                  onClick={() => navigate('/create-event')}
                 >
                   Créer votre premier événement
                 </Button>
@@ -378,11 +374,7 @@ const DashboardPage = () => {
             </Typography>
             <Grid container spacing={2}>
               <Grid item>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={() => navigate('/events/create')}
-                >
+                <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/create-event')}>
                   Créer un événement
                 </Button>
               </Grid>
@@ -393,6 +385,11 @@ const DashboardPage = () => {
                   onClick={() => navigate('/my-events')}
                 >
                   Mes événements
+                </Button>
+              </Grid>
+              <Grid item>
+                <Button variant="outlined" startIcon={<CalendarIcon />} onClick={() => navigate('/scan')}>
+                  Scanner billets
                 </Button>
               </Grid>
               <Grid item>

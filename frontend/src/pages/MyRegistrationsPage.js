@@ -88,19 +88,19 @@ const MyRegistrationsPage = () => {
     return (
       <Grid item xs={12} md={6} lg={4} key={registration.id}>
         <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          {event.poster && (
+              {event?.poster && (
             <CardMedia
               component="img"
               height="200"
-              image={getImageUrl(event.poster)}
-              alt={event.title}
+                  image={getImageUrl(event.poster)}
+                  alt={event.title}
               sx={{ objectFit: 'cover' }}
             />
           )}
           
           <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="h6" gutterBottom>
-              {event.title}
+             <Typography variant="h6" gutterBottom>
+               {event?.title}
             </Typography>
             
             <Box sx={{ mb: 2 }}>
@@ -117,12 +117,12 @@ const MyRegistrationsPage = () => {
               />
             </Box>
 
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              📅 {formatDate(event.start_date)}
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+               📅 {formatDate(event?.start_date)}
             </Typography>
             
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-              📍 {event.location}
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+               📍 {event?.location}
             </Typography>
 
             {registration.notes && (
@@ -145,7 +145,7 @@ const MyRegistrationsPage = () => {
                 Voir l'événement
               </Button>
               
-              {registration.status === 'pending' && (
+              {['pending', 'confirmed', 'waitlisted'].includes(registration.status) && (
                 <Button
                   variant="outlined"
                   color="error"

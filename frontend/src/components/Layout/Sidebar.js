@@ -15,8 +15,8 @@ import {
   Add as AddIcon,
   Dashboard as DashboardIcon,
   Person as PersonIcon,
-  Settings as SettingsIcon,
   Bookmark as BookmarkIcon,
+  QrCodeScanner as QrCodeScannerIcon,
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -24,7 +24,7 @@ import { setSidebarOpen } from '../../store/slices/uiSlice';
 
 const drawerWidth = 240;
 
-const menuItems = [
+const baseMenuItems = [
   { text: 'Accueil', icon: <HomeIcon />, path: '/' },
   { text: 'Événements', icon: <EventIcon />, path: '/events' },
   { text: 'Créer un événement', icon: <AddIcon />, path: '/create-event' },
@@ -39,6 +39,7 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { sidebarOpen } = useSelector((state) => state.ui);
+  const { user } = useSelector((state) => state.auth);
 
   const handleNavigation = (path) => {
     navigate(path);
@@ -52,7 +53,11 @@ const Sidebar = () => {
       </Box>
       <Divider />
       <List>
-        {menuItems.map((item) => (
+        {(
+          user && user.is_staff
+            ? [...baseMenuItems.slice(0, 6), { text: 'Scanner billets', icon: <QrCodeScannerIcon />, path: '/scan' }, ...baseMenuItems.slice(6)]
+            : baseMenuItems
+        ).map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
               selected={location.pathname === item.path}
@@ -63,17 +68,6 @@ const Sidebar = () => {
             </ListItemButton>
           </ListItem>
         ))}
-      </List>
-      <Divider />
-      <List>
-        <ListItem disablePadding>
-          <ListItemButton>
-            <ListItemIcon>
-              <SettingsIcon />
-            </ListItemIcon>
-            <ListItemText primary="Paramètres" />
-          </ListItemButton>
-        </ListItem>
       </List>
     </Box>
   );

@@ -213,7 +213,8 @@ export const fetchMyRegistrations = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await eventAPI.getMyRegistrations();
-      return response.data;
+      // Normaliser les réponses paginées DRF
+      return response.data.results || response.data;
     } catch (error) {
       return rejectWithValue(extractErrorMessage(error, 'Erreur de récupération de vos inscriptions'));
     }
@@ -392,6 +393,15 @@ const eventSlice = createSlice({
         if (state.currentEvent && state.currentEvent.id === action.payload.id) {
           state.currentEvent = action.payload;
         }
+        // Mettre à jour les autres listes en mémoire
+        const updateListItem = (list) => {
+          const idx = list.findIndex(e => e.id === action.payload.id);
+          if (idx !== -1) list[idx] = action.payload;
+        };
+        updateListItem(state.myEvents);
+        updateListItem(state.featuredEvents);
+        updateListItem(state.upcomingEvents);
+        updateListItem(state.ongoingEvents);
       })
       .addCase(updateEvent.rejected, (state, action) => {
         state.loading = false;

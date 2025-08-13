@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import Event, Category, Tag, EventRegistration, EventHistory
+from .models import Event, Category, Tag, EventRegistration, EventHistory, TicketType
 
 
 @admin.register(Category)
@@ -146,6 +146,14 @@ class EventAdmin(admin.ModelAdmin):
         updated = queryset.update(is_featured=True)
         self.message_user(request, f'{updated} événement(s) marqué(s) comme en vedette.')
     mark_as_featured.short_description = "Marquer comme en vedette"
+
+
+@admin.register(TicketType)
+class TicketTypeAdmin(admin.ModelAdmin):
+    list_display = ['name', 'event', 'price', 'quantity', 'sold_count', 'is_vip']
+    list_filter = ['is_vip', 'event']
+    search_fields = ['name', 'event__title']
+    ordering = ['event', 'price']
 
 
 @admin.register(EventRegistration)

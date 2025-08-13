@@ -86,11 +86,14 @@ export const eventAPI = {
   // Récupération des événements
   getEvents: (params = {}) => api.get('/events/', { params }),
   getEventById: (id) => api.get(`/events/${id}/`),
+  getEventParticipants: (id) => api.get(`/events/${id}/participants/`),
   getFeaturedEvents: () => api.get('/events/featured/'),
   getUpcomingEvents: () => api.get('/events/upcoming/'),
   getOngoingEvents: () => api.get('/events/ongoing/'),
   getMyEvents: () => api.get('/events/my_events/'),
   getEventStatistics: () => api.get('/events/statistics/'),
+  getTicketTypes: (eventId) => api.get(`/events/${eventId}/ticket-types/`),
+  createTicketType: (eventId, data) => api.post(`/events/${eventId}/ticket-types/`, data),
   
   // CRUD des événements
   createEvent: (eventData) => {
@@ -199,6 +202,10 @@ export const eventAPI = {
   getMyRegistrations: () => api.get('/registrations/'),
   cancelRegistration: (registrationId) => 
     api.post(`/registrations/${registrationId}/cancel/`),
+  confirmRegistration: (registrationId) => 
+    api.post(`/registrations/${registrationId}/confirm/`),
+  getRegistrationQr: (registrationId) => 
+    api.get(`/registrations/${registrationId}/qr/`),
   getUpcomingRegistrations: () => api.get('/registrations/upcoming/'),
   
   // Historique
@@ -277,3 +284,6 @@ export const getImageUrl = (imagePath) => {
 };
 
 export default api; 
+
+// Helper POST for dynamic endpoints (used in modal)
+export const post = (url, data = {}) => api.post(url, data);

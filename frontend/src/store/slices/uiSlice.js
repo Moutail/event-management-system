@@ -14,6 +14,7 @@ const initialState = {
     open: false,
     message: '',
     severity: 'info', // 'error', 'warning', 'info', 'success'
+    persist: false,
   },
 };
 
@@ -71,6 +72,7 @@ const uiSlice = createSlice({
         open: true,
         message: action.payload.message,
         severity: action.payload.severity || 'info',
+        persist: !!action.payload.persist,
       };
     },
     hideSnackbar: (state) => {

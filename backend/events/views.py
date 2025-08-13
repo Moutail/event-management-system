@@ -3,20 +3,34 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Q, Count
+from django.db.models import Q, Count, Sum
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 from datetime import datetime, timedelta
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.http import HttpResponse
+from django.core.mail import send_mail, EmailMultiAlternatives
+from django.template.loader import render_to_string
+import csv
+import stripe
+from decimal import Decimal
 
-from .models import Event, Category, Tag, EventRegistration, EventHistory
+try:
+    from openpyxl import Workbook
+except Exception:  # pragma: no cover
+    Workbook = None
+
+from .models import Event, Category, Tag, EventRegistration, EventHistory, TicketType
 from .serializers import (
     EventSerializer, EventListSerializer, EventDetailSerializer,
     CategorySerializer, TagSerializer, EventRegistrationSerializer,
-    EventRegistrationCreateSerializer, EventHistorySerializer
+    EventRegistrationCreateSerializer, EventHistorySerializer,
+    TicketTypeSerializer
 )
+from rest_framework.permissions import IsAuthenticated
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -118,6 +132,11 @@ class EventViewSet(viewsets.ModelViewSet):
             else:
                 month_end = now.replace(month=now.month + 1, day=1)
             queryset = queryset.filter(start_date__gte=month_start, start_date__lt=month_end)
+
+        # Par défaut, ne pas afficher les événements passés dans la liste publique
+        # (la vue "my_events" reste complète pour l'organisateur)
+        if getattr(self, 'action', None) == 'list' and not date_filter:
+            queryset = queryset.filter(end_date__gte=now, status='published')
         
         # Filtrer par prix
         min_price = self.request.query_params.get('min_price', None)
@@ -263,6 +282,27 @@ class EventViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(event)
         return Response(serializer.data)
 
+    def destroy(self, request, *args, **kwargs):
+        # Empêcher la suppression standard côté API; gérer via statut si besoin
+        return Response({"error": "Suppression non autorisée"}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @action(detail=True, methods=['get', 'post'], url_path='ticket-types')
+    def ticket_types(self, request, pk=None):
+        """Lister ou créer des types de billets pour un événement"""
+        event = self.get_object()
+        if request.method == 'GET':
+            serializer = TicketTypeSerializer(event.ticket_types.all(), many=True)
+            return Response(serializer.data)
+        # POST create (organizer only)
+        if event.organizer != request.user:
+            return Response({"error": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+        data = request.data.copy()
+        data['event'] = event.id
+        serializer = TicketTypeSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
     @action(detail=False, methods=['get'])
     def featured(self, request):
         """Récupérer les événements en vedette"""
@@ -278,6 +318,16 @@ class EventViewSet(viewsets.ModelViewSet):
             status='published'
         )
         serializer = EventListSerializer(events, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def participants(self, request, pk=None):
+        """Liste des participants pour un événement (organisateur ou staff uniquement)."""
+        event = self.get_object()
+        if event.organizer != request.user and not request.user.is_staff:
+            return Response({"error": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+        regs = event.registrations.select_related('user', 'ticket_type').all()
+        serializer = EventRegistrationSerializer(regs, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
@@ -302,22 +352,23 @@ class EventViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """Récupérer les statistiques des événements"""
-        total_events = Event.objects.count()
-        published_events = Event.objects.filter(status='published').count()
-        upcoming_events = Event.objects.filter(
-            start_date__gt=timezone.now(),
-            status='published'
-        ).count()
-        ongoing_events = Event.objects.filter(
-            start_date__lte=timezone.now(),
-            end_date__gte=timezone.now(),
-            status='published'
-        ).count()
+        # Statistiques personnelles de l'organisateur connecté
+        user = request.user
+        user_events = Event.objects.filter(organizer=user)
+        total_events = user_events.count()
+        published_events = user_events.filter(status='published').count()
+        upcoming_events = user_events.filter(start_date__gt=timezone.now(), status='published').count()
+        ongoing_events = user_events.filter(start_date__lte=timezone.now(), end_date__gte=timezone.now(), status='published').count()
         
         # Statistiques par catégorie
         category_stats = Category.objects.annotate(
-            event_count=Count('event')
+            event_count=Count('event', filter=Q(event__organizer=user))
         ).values('name', 'event_count')
+
+        # Revenus générés
+        total_revenue = str(sum(
+            reg.price_paid for reg in EventRegistration.objects.filter(status__in=['confirmed', 'attended'], event__organizer=user)
+        ))
         
         return Response({
             'total_events': total_events,
@@ -325,7 +376,80 @@ class EventViewSet(viewsets.ModelViewSet):
             'upcoming_events': upcoming_events,
             'ongoing_events': ongoing_events,
             'category_stats': category_stats,
+            'total_revenue': total_revenue,
         })
+
+    @action(detail=True, methods=['get'])
+    def report(self, request, pk=None):
+        """Rapport d'un événement: inscrits, présents, taux de participation, revenus."""
+        event = self.get_object()
+        total = event.registrations.count()
+        confirmed = event.registrations.filter(status='confirmed').count()
+        attended = event.registrations.filter(status='attended').count()
+        waitlisted = event.registrations.filter(status='waitlisted').count()
+        revenue = event.registrations.filter(status__in=['confirmed', 'attended']).aggregate(total=Sum('price_paid')).get('total') or 0
+        participation_rate = (attended / confirmed) * 100 if confirmed else 0
+        return Response({
+            'total_registrations': total,
+            'confirmed': confirmed,
+            'attended': attended,
+            'waitlisted': waitlisted,
+            'participation_rate': round(participation_rate, 2),
+            'revenue': float(revenue),
+        })
+
+    @action(detail=True, methods=['get'])
+    def export_registrations_csv(self, request, pk=None):
+        """Exporter la liste des participants en CSV"""
+        event = self.get_object()
+        if event.organizer != request.user and not request.user.is_staff:
+            return Response({"error": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="registrations_{event.id}.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['Username', 'Email', 'Status', 'Ticket', 'Price', 'Registered At'])
+        for reg in event.registrations.select_related('user', 'ticket_type').all():
+            writer.writerow([
+                reg.user.username,
+                reg.user.email,
+                reg.status,
+                getattr(reg.ticket_type, 'name', ''),
+                str(reg.price_paid),
+                reg.registered_at.strftime('%Y-%m-%d %H:%M')
+            ])
+        return response
+
+    @action(detail=True, methods=['get'])
+    def export_registrations_excel(self, request, pk=None):
+        """Exporter la liste des participants en Excel"""
+        event = self.get_object()
+        if event.organizer != request.user and not request.user.is_staff:
+            return Response({"error": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+        if Workbook is None:
+            return Response({"error": "openpyxl non installé"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Inscriptions'
+        ws.append(['Username', 'Email', 'Status', 'Ticket', 'Price', 'Registered At'])
+        for reg in event.registrations.select_related('user', 'ticket_type').all():
+            ws.append([
+                reg.user.username,
+                reg.user.email,
+                reg.status,
+                getattr(reg.ticket_type, 'name', ''),
+                float(reg.price_paid or 0),
+                reg.registered_at.strftime('%Y-%m-%d %H:%M')
+            ])
+        from io import BytesIO
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        response = HttpResponse(
+            output.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="registrations_{event.id}.xlsx"'
+        return response
 
 
 class EventRegistrationViewSet(viewsets.ModelViewSet):
@@ -336,6 +460,51 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status', 'event']
     ordering_fields = ['registered_at', 'updated_at']
     ordering = ['-registered_at']
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        registration = serializer.save()
+
+        # S'assurer que le QR est généré si confirmé (cas gratuit)
+        try:
+            registration.refresh_from_db()
+        except Exception:
+            pass
+
+        # Envoyer confirmation pour inscriptions gratuites confirmées
+        if (registration.price_paid or 0) == 0 and registration.status == 'confirmed':
+            try:
+                qr_url = None
+                if registration.qr_code:
+                    qr_url = request.build_absolute_uri(registration.qr_code.url)
+                context = {
+                    'user': registration.user,
+                    'event': registration.event,
+                    'qr_url': qr_url,
+                }
+                subject = f"Confirmation d'inscription - {registration.event.title}"
+                text_body = render_to_string('emails/registration_confirmation.txt', context)
+                html_body = render_to_string('emails/registration_confirmation.html', context)
+                msg = EmailMultiAlternatives(subject, text_body, getattr(settings, 'DEFAULT_FROM_EMAIL', None), [registration.user.email])
+                msg.attach_alternative(html_body, 'text/html')
+                if registration.qr_code and hasattr(registration.qr_code, 'path'):
+                    try:
+                        with open(registration.qr_code.path, 'rb') as f:
+                            img_data = f.read()
+                        from email.mime.image import MIMEImage
+                        img = MIMEImage(img_data)
+                        img.add_header('Content-ID', '<qr_cid>')
+                        img.add_header('Content-Disposition', 'inline', filename='qr.png')
+                        msg.attach(img)
+                    except Exception:
+                        pass
+                msg.send(fail_silently=True)
+            except Exception:
+                pass
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
     def get_queryset(self):
         """Filtrer les inscriptions selon l'utilisateur"""
@@ -358,16 +527,233 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         
+        previous_status = registration.status
         registration.status = 'cancelled'
         registration.save()
         
         # Mettre à jour le compteur d'inscriptions de l'événement
         event = registration.event
-        event.current_registrations = max(0, event.current_registrations - 1)
-        event.save()
+        if previous_status in ['confirmed', 'attended']:
+            event.current_registrations = max(0, event.current_registrations - 1)
+            event.save(update_fields=['current_registrations'])
+
+        # Diminuer le compteur de tickets vendus
+        if registration.ticket_type and previous_status in ['confirmed', 'attended']:
+            tt = registration.ticket_type
+            tt.sold_count = max(0, tt.sold_count - 1)
+            tt.save(update_fields=['sold_count'])
+
+        # Promouvoir le premier en liste d'attente s'il existe
+        waitlisted = EventRegistration.objects.filter(event=event, status='waitlisted').order_by('registered_at').first()
+        if waitlisted and (event.place_type == 'unlimited' or (event.max_capacity or 0) > event.current_registrations):
+            # Vérifier la disponibilité du type de billet
+            if not waitlisted.ticket_type or waitlisted.ticket_type.quantity is None or waitlisted.ticket_type.sold_count < waitlisted.ticket_type.quantity:
+                waitlisted.status = 'confirmed'
+                waitlisted.save()
+                event.current_registrations = (event.current_registrations or 0) + 1
+                event.save(update_fields=['current_registrations'])
+                if waitlisted.ticket_type:
+                    tt = waitlisted.ticket_type
+                    tt.sold_count = tt.sold_count + 1
+                    tt.save(update_fields=['sold_count'])
         
         serializer = self.get_serializer(registration)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        """Confirmer une inscription en attente ou liste d'attente"""
+        registration = self.get_object()
+        if registration.event.organizer != request.user and not request.user.is_staff:
+            return Response({"error": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+        if registration.status in ['pending', 'waitlisted']:
+            event = registration.event
+            # Vérifier la capacité de l'événement
+            if event.place_type == 'limited' and event.max_capacity is not None and event.current_registrations >= event.max_capacity:
+                return Response({"error": "Capacité maximale atteinte"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Vérifier la capacité du type de billet
+            if registration.ticket_type and registration.ticket_type.quantity is not None and registration.ticket_type.sold_count >= registration.ticket_type.quantity:
+                return Response({"error": "Plus de billets disponibles pour ce type"}, status=status.HTTP_400_BAD_REQUEST)
+
+            registration.status = 'confirmed'
+            registration.save()
+            event.current_registrations = (event.current_registrations or 0) + 1
+            event.save(update_fields=['current_registrations'])
+            if registration.ticket_type:
+                tt = registration.ticket_type
+                tt.sold_count = tt.sold_count + 1
+                tt.save(update_fields=['sold_count'])
+        return Response(self.get_serializer(registration).data)
+
+    @action(detail=True, methods=['get'])
+    def qr(self, request, pk=None):
+        """Retourner l'URL du QR code pour l'inscription confirmée"""
+        registration = self.get_object()
+        if registration.user != request.user and registration.event.organizer != request.user:
+            return Response({"error": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+        if registration.qr_code:
+            return Response({"qr_code": request.build_absolute_uri(registration.qr_code.url)})
+        return Response({"qr_code": None})
+
+    @action(detail=True, methods=['post'])
+    def create_payment_intent(self, request, pk=None):
+        """Créer un PaymentIntent Stripe pour une inscription payante."""
+        if not getattr(settings, 'STRIPE_SECRET_KEY', None):
+            return Response({"error": "Stripe non configuré"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+        registration = self.get_object()
+        amount = int(float(registration.price_paid or 0) * 100)
+        if amount <= 0:
+            return Response({"error": "Montant invalide"}, status=status.HTTP_400_BAD_REQUEST)
+        intent = stripe.PaymentIntent.create(
+            amount=amount,
+            currency='eur',
+            automatic_payment_methods={"enabled": True},
+            metadata={
+                'registration_id': registration.id,
+                'event_id': registration.event_id,
+                'user_id': registration.user_id,
+            }
+        )
+        return Response({ 'client_secret': intent.client_secret, 'payment_intent_id': intent.id })
+
+    @action(detail=True, methods=['post'])
+    def confirm_payment(self, request, pk=None):
+        """Confirmer côté serveur qu'un PaymentIntent Stripe est payé et mettre à jour l'inscription.
+
+        Body attendu: { payment_intent_id: "pi_..." }
+        """
+        if not getattr(settings, 'STRIPE_SECRET_KEY', None):
+            return Response({"error": "Stripe non configuré"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        stripe.api_key = settings.STRIPE_SECRET_KEY
+
+        registration = self.get_object()
+        payment_intent_id = request.data.get('payment_intent_id')
+        if not payment_intent_id:
+            return Response({"error": "payment_intent_id manquant"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        except Exception as e:
+            return Response({"error": "PaymentIntent introuvable", "details": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Vérifications de sécurité minimales
+        if intent.status != 'succeeded':
+            return Response({"error": "Paiement non confirmé", "status": intent.status}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Vérifier cohérence des métadonnées si présentes
+        meta_reg_id = str(intent.metadata.get('registration_id')) if getattr(intent, 'metadata', None) else None
+        if meta_reg_id and str(registration.id) != meta_reg_id:
+            return Response({"error": "Le PaymentIntent ne correspond pas à cette inscription"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Idempotence: si déjà payé, renvoyer l'état courant
+        if registration.payment_status == 'paid':
+            return Response(self.get_serializer(registration).data)
+
+        # Marquer comme payé et confirmer l'inscription si capacité disponible
+        registration.payment_status = 'paid'
+        registration.payment_provider = 'stripe'
+        registration.payment_reference = intent.id
+
+        # Confirmer l'inscription si elle n'est pas en liste d'attente
+        if registration.status in ['pending', 'waitlisted']:
+            event = registration.event
+            # Capacité événement
+            capacity_ok = (event.place_type == 'unlimited' or event.max_capacity is None or (event.current_registrations or 0) < (event.max_capacity or 0))
+            # Capacité type de billet
+            ticket_ok = True
+            if registration.ticket_type and registration.ticket_type.quantity is not None:
+                ticket_ok = registration.ticket_type.sold_count < registration.ticket_type.quantity
+
+            if capacity_ok and ticket_ok:
+                registration.status = 'confirmed'
+                registration.save(update_fields=['payment_status', 'payment_provider', 'payment_reference', 'status', 'updated_at'])
+                # Mettre à jour compteurs
+                event.current_registrations = (event.current_registrations or 0) + 1
+                event.save(update_fields=['current_registrations'])
+                if registration.ticket_type:
+                    tt = registration.ticket_type
+                    tt.sold_count = tt.sold_count + 1
+                    tt.save(update_fields=['sold_count'])
+            else:
+                # Paiement OK mais rester en attente si pas de capacité
+                registration.save(update_fields=['payment_status', 'payment_provider', 'payment_reference', 'updated_at'])
+        else:
+            registration.save(update_fields=['payment_status', 'payment_provider', 'payment_reference', 'updated_at'])
+
+        # Envoyer un email de confirmation avec le QR code si disponible
+        try:
+            registration.refresh_from_db()
+            qr_url = None
+            if registration.qr_code:
+                qr_url = request.build_absolute_uri(registration.qr_code.url)
+            subject = f"Confirmation d'inscription - {registration.event.title}"
+            context = {
+                'user': registration.user,
+                'event': registration.event,
+                'qr_url': qr_url,
+            }
+            message = render_to_string('emails/registration_confirmation.txt', context)
+            html_message = render_to_string('emails/registration_confirmation.html', context)
+
+            try:
+                msg = EmailMultiAlternatives(subject, message, getattr(settings, 'DEFAULT_FROM_EMAIL', None), [registration.user.email])
+                msg.attach_alternative(html_message, 'text/html')
+
+                # Attacher le QR inline si disponible
+                if registration.qr_code and hasattr(registration.qr_code, 'path'):
+                    try:
+                        with open(registration.qr_code.path, 'rb') as f:
+                            img_data = f.read()
+                        from email.mime.image import MIMEImage
+                        img = MIMEImage(img_data)
+                        img.add_header('Content-ID', '<qr_cid>')
+                        img.add_header('Content-Disposition', 'inline', filename='qr.png')
+                        msg.attach(img)
+                    except Exception:
+                        pass
+
+                msg.send(fail_silently=True)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        return Response(self.get_serializer(registration).data)
+
+    @action(detail=False, methods=['post'])
+    def verify_qr(self, request):
+        """Vérifier un QR code à l'entrée. Body: { token, mark_attended }"""
+        token = request.data.get('token')
+        mark_attended = bool(request.data.get('mark_attended', True))
+        if not token:
+            return Response({"valid": False, "error": "Token manquant"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            registration = EventRegistration.objects.select_related('event', 'user').get(qr_token=token)
+        except EventRegistration.DoesNotExist:
+            return Response({"valid": False}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only event organizer or staff can verify
+        if registration.event.organizer != request.user and not request.user.is_staff:
+            return Response({"error": "Non autorisé"}, status=status.HTTP_403_FORBIDDEN)
+
+        if mark_attended and registration.status == 'confirmed':
+            registration.status = 'attended'
+            registration.save()
+        return Response({
+            "valid": True,
+            "registration_id": registration.id,
+            "status": registration.status,
+            "user": {
+                "username": registration.user.username,
+                "email": registration.user.email,
+            },
+            "event": {
+                "id": registration.event.id,
+                "title": registration.event.title,
+            }
+        })
 
     @action(detail=False, methods=['get'])
     def upcoming(self, request):

@@ -20,8 +20,10 @@ import {
   cancelRegistration,
   fetchMyRegistrations
 } from '../store/slices/eventSlice';
+import { showSnackbar } from '../store/slices/uiSlice';
 import { formatDate, formatPrice, getImageUrl } from '../services/api';
 import RegistrationModal from '../components/RegistrationModal';
+import { eventAPI } from '../services/api';
 
 const EventDetailPage = () => {
   const dispatch = useDispatch();
@@ -37,10 +39,18 @@ const EventDetailPage = () => {
   const { user } = useSelector((state) => state.auth);
 
   // Vérifier si l'utilisateur est inscrit à cet événement
-  const userRegistration = Array.isArray(myRegistrations) ? myRegistrations.find(reg => reg.event === parseInt(id)) : null;
+  const userRegistration = Array.isArray(myRegistrations)
+    ? myRegistrations.find(reg => (Number(reg.event) === Number(id) || Number(reg.event?.id) === Number(id)))
+    : null;
+  const canCancel = !!(userRegistration && ['pending', 'confirmed', 'waitlisted', 'attended'].includes(userRegistration.status));
+  const isConfirmed = !!(userRegistration && ['confirmed', 'attended'].includes(userRegistration.status));
+  const isPending = !!(userRegistration && userRegistration.status === 'pending');
+  const isWaitlisted = !!(userRegistration && userRegistration.status === 'waitlisted');
   
   // État pour le modal d'inscription
   const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
+  const [participants, setParticipants] = useState([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -74,15 +84,35 @@ const EventDetailPage = () => {
     }
   };
 
+  // Charger la liste des participants si l'utilisateur est l'organisateur
+  useEffect(() => {
+    const loadParticipants = async () => {
+      if (!currentEvent || !user) return;
+      if (currentEvent.organizer?.id !== user.id && !user.is_staff) return;
+      setLoadingParticipants(true);
+      try {
+        const res = await eventAPI.getEventParticipants(currentEvent.id);
+        setParticipants(res.data || []);
+      } catch (_) {}
+      setLoadingParticipants(false);
+    };
+    loadParticipants();
+  }, [currentEvent, user]);
+
   // Fonction pour annuler une inscription
   const handleCancelRegistration = async () => {
     if (!userRegistration) return;
+    const confirmed = window.confirm("Voulez-vous vraiment annuler votre inscription ?");
+    if (!confirmed) return;
 
     try {
       await dispatch(cancelRegistration(userRegistration.id)).unwrap();
       
       // Recharger l'événement pour mettre à jour les informations
       dispatch(fetchEventById(id));
+      // Recharger mes inscriptions pour recalculer le bouton (réaffichera "S'inscrire")
+      dispatch(fetchMyRegistrations());
+      dispatch(showSnackbar({ message: "Inscription annulée.", severity: 'success' }));
     } catch (error) {
       console.error('Erreur lors de l\'annulation:', error);
     }
@@ -174,7 +204,7 @@ const EventDetailPage = () => {
                 >
                   Se connecter pour s'inscrire
                 </Button>
-              ) : userRegistration ? (
+              ) : canCancel ? (
                 <Box sx={{ mb: 2 }}>
                   <Button
                     variant="outlined"
@@ -187,12 +217,19 @@ const EventDetailPage = () => {
                   >
                     {registrationLoading ? 'Annulation...' : 'Annuler l\'inscription'}
                   </Button>
-                  <Typography variant="body2" color="success.main" textAlign="center">
-                    ✓ Vous êtes inscrit à cet événement
-                  </Typography>
-                  {userRegistration.status && (
+                  {isConfirmed && (
+                    <Typography variant="body2" color="success.main" textAlign="center">
+                      ✓ Inscription confirmée
+                    </Typography>
+                  )}
+                  {isPending && (
+                    <Typography variant="body2" color="warning.main" textAlign="center">
+                      Inscription en attente de paiement. Veuillez finaliser le paiement.
+                    </Typography>
+                  )}
+                  {isWaitlisted && (
                     <Typography variant="body2" color="text.secondary" textAlign="center">
-                      Statut: {userRegistration.status}
+                      Vous êtes sur liste d'attente
                     </Typography>
                   )}
                 </Box>
@@ -241,6 +278,33 @@ const EventDetailPage = () => {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* Participants (organisateur) */}
+        {user && (currentEvent.organizer?.id === user.id || user.is_staff) && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Participants
+                </Typography>
+                {loadingParticipants ? (
+                  <Typography>Chargement...</Typography>
+                ) : participants.length === 0 ? (
+                  <Typography color="text.secondary">Aucun participant pour l'instant.</Typography>
+                ) : (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1 }}>
+                    {participants.map((reg) => (
+                      <Box key={reg.id} sx={{ p: 1.5, border: '1px solid #eee', borderRadius: 1 }}>
+                        <Typography variant="body2"><strong>{reg.user?.username}</strong> — {reg.user?.email}</Typography>
+                        <Typography variant="caption" color="text.secondary">Statut: {reg.status} • {reg.ticket_type_name || 'Par défaut'} • {formatPrice(reg.price_paid || 0)}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
 
         {/* Informations détaillées */}
         <Grid item xs={12} md={6}>

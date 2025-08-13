@@ -172,13 +172,18 @@ const MyEventsPage = () => {
         <Typography variant="h4" component="h1">
           Mes événements
         </Typography>
-        <Fab
-          color="primary"
-          aria-label="ajouter"
-          onClick={() => navigate('/events/create')}
-        >
-          <AddIcon />
-        </Fab>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Button variant="outlined" onClick={() => navigate('/scan')}>
+            Scanner billets
+          </Button>
+          <Fab
+            color="primary"
+            aria-label="ajouter"
+            onClick={() => navigate('/create-event')}
+          >
+            <AddIcon />
+          </Fab>
+        </Box>
       </Box>
 
       {error && (
@@ -255,7 +260,7 @@ const MyEventsPage = () => {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => navigate('/events/create')}
+              onClick={() => navigate('/create-event')}
               sx={{ mt: 2 }}
             >
               Créer votre premier événement
@@ -346,7 +351,7 @@ const MyEventsPage = () => {
                       <Tooltip title="Modifier">
                         <IconButton
                           size="small"
-                          onClick={() => navigate(`/events/${event.id}/edit`)}
+                          onClick={() => navigate(`/edit-event/${event.id}`)}
                         >
                           <EditIcon />
                         </IconButton>

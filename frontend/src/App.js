@@ -4,6 +4,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Snackbar, Alert } from '@mui/material';
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
 
 // Redux actions
 import { getCurrentUser } from './store/slices/authSlice';
@@ -29,6 +31,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
+import QRCodeScannerPage from './pages/QRCodeScannerPage';
 
 function App() {
   const dispatch = useDispatch();
@@ -79,10 +82,51 @@ function App() {
     );
   }
 
+  const stripePublicKey = process.env.REACT_APP_STRIPE_PK || '';
+  const stripePromise = stripePublicKey ? loadStripe(stripePublicKey) : null;
+
   return (
     <ThemeProvider theme={currentTheme}>
       <CssBaseline />
-      
+      {stripePromise ? (
+        <Elements stripe={stripePromise}>
+          <AppRoutes />
+        </Elements>
+      ) : (
+        <AppRoutes />
+      )}
+    </ThemeProvider>
+  );
+}
+
+function AppRoutes() {
+  const { isAuthenticated, loading: authLoading, user } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+  const { snackbar } = useSelector((state) => state.ui);
+
+  useEffect(() => {
+    const init = async () => {
+      if (isAuthenticated && !user) {
+        try {
+          await dispatch(getCurrentUser());
+        } catch (_) {}
+      }
+    };
+    init();
+  }, [dispatch, isAuthenticated, user]);
+
+  const handleSnackbarClose = () => {
+    dispatch(hideSnackbar());
+  };
+
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Chargement...</div>
+    );
+  }
+
+  return (
+      <>
       <Routes>
         {/* Routes publiques */}
         <Route path="/login" element={
@@ -106,17 +150,17 @@ function App() {
           <Route path="my-events" element={<MyEventsPage />} />
           <Route path="my-registrations" element={<MyRegistrationsPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="scan" element={<QRCodeScannerPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
         
         {/* Route 404 */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
-
       {/* Snackbar global */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={snackbar.persist ? null : 6000}
         onClose={handleSnackbarClose}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
@@ -129,7 +173,7 @@ function App() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-    </ThemeProvider>
+      </>
   );
 }
 

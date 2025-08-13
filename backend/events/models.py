@@ -2,7 +2,17 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from django.utils import timezone
+from django.conf import settings
 import uuid
+import io
+from decimal import Decimal
+
+try:
+    import qrcode
+    from PIL import Image
+except Exception:  # pragma: no cover - handled by requirements
+    qrcode = None
+    Image = None
 
 
 class Category(models.Model):
@@ -114,6 +124,12 @@ class Event(models.Model):
         
         if self.status == 'published' and not self.published_at:
             self.published_at = timezone.now()
+
+        # Garder la cohérence prix/gratuité même si l'objet est créé hors serializer
+        try:
+            self.is_free = (Decimal(self.price or 0) == Decimal('0'))
+        except Exception:
+            pass
         
         super().save(*args, **kwargs)
 
@@ -148,6 +164,64 @@ class Event(models.Model):
         return self.end_date < timezone.now()
 
 
+class TicketType(models.Model):
+    """Types de billets pour un événement (Gratuit, Standard, VIP, etc.)"""
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='ticket_types', verbose_name="Événement")
+    name = models.CharField(max_length=100, verbose_name="Nom du billet")
+    description = models.TextField(blank=True, verbose_name="Description")
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)], verbose_name="Prix")
+    discount_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, validators=[MinValueValidator(0)], verbose_name="Prix remisé")
+    discount_percent = models.PositiveIntegerField(null=True, blank=True, verbose_name="Réduction (%)")
+    is_discount_active = models.BooleanField(default=False, verbose_name="Réduction active")
+    quantity = models.PositiveIntegerField(null=True, blank=True, verbose_name="Quantité disponible")
+    is_vip = models.BooleanField(default=False, verbose_name="Billet VIP")
+    sale_start = models.DateTimeField(null=True, blank=True, verbose_name="Début de vente")
+    sale_end = models.DateTimeField(null=True, blank=True, verbose_name="Fin de vente")
+    sold_count = models.PositiveIntegerField(default=0, verbose_name="Billets vendus")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Type de billet"
+        verbose_name_plural = "Types de billets"
+        unique_together = ['event', 'name']
+        ordering = ['price', 'name']
+
+    def __str__(self) -> str:
+        return f"{self.name} - {self.event.title}"
+
+    @property
+    def available_quantity(self):
+        if self.quantity is None:
+            return None
+        return max(0, self.quantity - self.sold_count)
+
+    @property
+    def has_discount(self) -> bool:
+        if not self.is_discount_active:
+            return False
+        if self.discount_price is not None:
+            try:
+                return self.discount_price < self.price
+            except Exception:
+                return False
+        if self.discount_percent:
+            return self.discount_percent > 0
+        return False
+
+    @property
+    def effective_price(self):
+        if not self.has_discount:
+            return self.price
+        if self.discount_price is not None:
+            return self.discount_price
+        if self.discount_percent:
+            try:
+                return (self.price or 0) * (Decimal('1') - (Decimal(self.discount_percent) / Decimal('100')))
+            except Exception:
+                return self.price
+        return self.price
+
+
 class EventRegistration(models.Model):
     """Modèle pour les inscriptions aux événements"""
     STATUS_CHOICES = [
@@ -156,11 +230,24 @@ class EventRegistration(models.Model):
         ('cancelled', 'Annulée'),
         ('attended', 'Présent'),
         ('no_show', 'Absent'),
+        ('waitlisted', 'Liste d\'attente'),
     ]
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='registrations', verbose_name="Événement")
     user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Utilisateur")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="Statut")
+    ticket_type = models.ForeignKey('TicketType', on_delete=models.SET_NULL, null=True, blank=True, related_name='registrations', verbose_name="Type de billet")
+    price_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)], verbose_name="Prix payé")
+    payment_status = models.CharField(max_length=20, default='unpaid', choices=[
+        ('unpaid', 'Non payé'),
+        ('pending', 'En attente'),
+        ('paid', 'Payé'),
+        ('refunded', 'Remboursé')
+    ], verbose_name="Statut de paiement")
+    payment_provider = models.CharField(max_length=30, blank=True, verbose_name="Fournisseur de paiement")
+    payment_reference = models.CharField(max_length=100, blank=True, verbose_name="Référence de paiement")
+    qr_token = models.CharField(max_length=64, unique=True, blank=True, null=True)
+    qr_code = models.ImageField(upload_to='tickets/qr/', blank=True, null=True, verbose_name="QR Code")
     
     # Informations supplémentaires
     notes = models.TextField(blank=True, verbose_name="Notes")
@@ -186,8 +273,36 @@ class EventRegistration(models.Model):
             self.confirmed_at = timezone.now()
         elif self.status == 'cancelled' and not self.cancelled_at:
             self.cancelled_at = timezone.now()
-        
+
+        # Ensure a token exists
+        if not self.qr_token:
+            self.qr_token = uuid.uuid4().hex
+
         super().save(*args, **kwargs)
+
+        # Generate QR after we have an ID and token
+        if self.status in ['confirmed', 'attended'] and qrcode is not None and not self.qr_code:
+            self._generate_and_store_qr()
+
+    def _generate_and_store_qr(self):
+        """Generate and store a QR code image for the registration."""
+        qr_payload = {
+            'event_id': self.event_id,
+            'registration_id': self.id,
+            'user_id': self.user_id,
+            'token': self.qr_token,
+        }
+        data = f"EMSv1|{qr_payload['event_id']}|{qr_payload['registration_id']}|{qr_payload['user_id']}|{qr_payload['token']}"
+
+        qr_img = qrcode.make(data)
+        buffer = io.BytesIO()
+        qr_img.save(buffer, format='PNG')
+        buffer.seek(0)
+
+        from django.core.files.base import ContentFile
+        filename = f"qr_{self.qr_token}.png"
+        self.qr_code.save(filename, ContentFile(buffer.read()), save=False)
+        super().save(update_fields=['qr_code'])
 
 
 class EventHistory(models.Model):
@@ -207,3 +322,29 @@ class EventHistory(models.Model):
 
     def __str__(self):
         return f"{self.event.title} - {self.action} - {self.timestamp}" 
+
+
+class NotificationLog(models.Model):
+    """Trace des notifications envoyées pour éviter les doublons."""
+    TYPE_CHOICES = [
+        ('reminder_1d', 'Rappel J-1'),
+        ('reminder_day', 'Rappel jour J'),
+        ('update', 'Mise à jour'),
+        ('thank_you', 'Remerciement'),
+    ]
+
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='notifications')
+    registration = models.ForeignKey(EventRegistration, on_delete=models.CASCADE, null=True, blank=True, related_name='notifications')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['event', 'type']),
+            models.Index(fields=['registration', 'type']),
+        ]
+        verbose_name = 'Notification'
+        verbose_name_plural = 'Notifications'
+
+    def __str__(self) -> str:
+        return f"{self.event_id} - {self.type} - {self.created_at:%Y-%m-%d %H:%M}"

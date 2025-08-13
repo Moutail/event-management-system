@@ -27,6 +27,8 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { fr } from 'date-fns/locale';
 import { Add as AddIcon, Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
 import { createEvent, fetchCategories, fetchTags } from '../store/slices/eventSlice';
+import { eventAPI } from '../services/api';
+import { showSnackbar } from '../store/slices/uiSlice';
 import { getImageUrl } from '../services/api';
 
 const CreateEventPage = () => {
@@ -36,6 +38,8 @@ const CreateEventPage = () => {
   const [selectedTags, setSelectedTags] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
   const [selectedImageFile, setSelectedImageFile] = useState(null);
+  const [ticketTypes, setTicketTypes] = useState([]);
+  const [newTicket, setNewTicket] = useState({ name: '', price: 0, quantity: '', is_vip: false, is_discount_active: false, discount_price: '', discount_percent: '' });
 
   const {
     control,
@@ -205,8 +209,24 @@ const CreateEventPage = () => {
 
     try {
       console.log('Envoi de la requête...');
-      const result = await dispatch(createEvent(formData)).unwrap();
-      console.log('✅ Succès:', result);
+      const event = await dispatch(createEvent(formData)).unwrap();
+      console.log('✅ Succès:', event);
+      // Créer les types de billets si fournis
+      if (Array.isArray(ticketTypes) && ticketTypes.length > 0) {
+        for (const tt of ticketTypes) {
+          const payload = {
+            name: tt.name,
+            price: Number(tt.price) || 0,
+            quantity: tt.quantity === '' ? null : Number(tt.quantity),
+            is_vip: !!tt.is_vip,
+            is_discount_active: !!tt.is_discount_active,
+            discount_price: tt.discount_price === '' ? null : Number(tt.discount_price),
+            discount_percent: tt.discount_percent === '' ? null : Number(tt.discount_percent),
+          };
+          try { await eventAPI.createTicketType(event.id, payload); } catch (_) {}
+        }
+      }
+      dispatch(showSnackbar({ message: 'Événement créé avec succès', severity: 'success' }));
       navigate('/events');
     } catch (error) {
       console.error('❌ Erreur lors de la création:', error);
@@ -346,6 +366,53 @@ const CreateEventPage = () => {
 
             <Grid item xs={12}>
               <Divider sx={{ my: 2 }} />
+            </Grid>
+
+            {/* Types de billets */}
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Types de billets
+              </Typography>
+              <Grid container spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                <Grid item xs={12} md={3}>
+                  <TextField label="Nom" fullWidth value={newTicket.name} onChange={(e)=>setNewTicket({...newTicket,name:e.target.value})} />
+                </Grid>
+                <Grid item xs={6} md={2}>
+                  <TextField label="Prix" type="number" fullWidth value={newTicket.price} onChange={(e)=>setNewTicket({...newTicket,price:e.target.value})} />
+                </Grid>
+                <Grid item xs={6} md={2}>
+                  <TextField label="Quantité" type="number" fullWidth value={newTicket.quantity} onChange={(e)=>setNewTicket({...newTicket,quantity:e.target.value})} />
+                </Grid>
+                <Grid item xs={6} md={2}>
+                  <FormControlLabel control={<Switch checked={newTicket.is_vip} onChange={(e)=>setNewTicket({...newTicket,is_vip:e.target.checked})} />} label="VIP" />
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <FormControlLabel control={<Switch checked={newTicket.is_discount_active} onChange={(e)=>setNewTicket({...newTicket,is_discount_active:e.target.checked})} />} label="Réduction active" />
+                </Grid>
+                <Grid item xs={6} md={2}>
+                  <TextField label="Prix remisé" type="number" fullWidth value={newTicket.discount_price} onChange={(e)=>setNewTicket({...newTicket,discount_price:e.target.value})} />
+                </Grid>
+                <Grid item xs={6} md={2}>
+                  <TextField label="Réduction %" type="number" fullWidth value={newTicket.discount_percent} onChange={(e)=>setNewTicket({...newTicket,discount_percent:e.target.value})} />
+                </Grid>
+                <Grid item xs={12} md={2}>
+                  <Button variant="outlined" onClick={()=>{
+                    if(!newTicket.name) return;
+                    setTicketTypes([...ticketTypes, newTicket]);
+                    setNewTicket({ name: '', price: 0, quantity: '', is_vip: false, is_discount_active: false, discount_price: '', discount_percent: '' });
+                  }}>Ajouter</Button>
+                </Grid>
+              </Grid>
+              {ticketTypes.length>0 && (
+                <Box sx={{ display:'flex', flexDirection:'column', gap:1 }}>
+                  {ticketTypes.map((tt,idx)=> (
+                    <Box key={idx} sx={{ p:1.5, border:'1px solid #eee', borderRadius:1, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                      <Typography>{tt.name} — {tt.is_discount_active && tt.discount_price ? <><span style={{textDecoration:'line-through', marginRight:6}}>{Number(tt.price).toFixed(2)} €</span><strong>{Number(tt.discount_price).toFixed(2)} €</strong></> : <>{Number(tt.price).toFixed(2)} €</>} {tt.is_vip ? ' • VIP' : ''} {tt.quantity? ` • Qté: ${tt.quantity}`:''}</Typography>
+                      <Button color="error" onClick={()=> setTicketTypes(ticketTypes.filter((_,i)=>i!==idx))}>Supprimer</Button>
+                    </Box>
+                  ))}
+                </Box>
+              )}
             </Grid>
 
             {/* Dates et lieu */}
