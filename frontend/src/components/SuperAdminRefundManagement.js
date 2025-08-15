@@ -38,6 +38,7 @@ import {
   FilterList as FilterIcon
 } from '@mui/icons-material';
 import api from '../services/api';
+import RefundDetailModal from './RefundDetailModal';
 
 const SuperAdminRefundManagement = () => {
   const [refunds, setRefunds] = useState([]);
@@ -48,6 +49,7 @@ const SuperAdminRefundManagement = () => {
   const [reason, setReason] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [detailDialog, setDetailDialog] = useState(false);
 
   useEffect(() => {
     loadRefunds();
@@ -56,7 +58,7 @@ const SuperAdminRefundManagement = () => {
   const loadRefunds = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/refunds/');
+      const response = await api.get('/admin/refunds/');
       // L'API retourne { count, results, page, page_size, total_pages }
       // Nous voulons le tableau 'results'
       setRefunds(response.data?.results || []);
@@ -69,6 +71,11 @@ const SuperAdminRefundManagement = () => {
     }
   };
 
+  const handleViewDetails = (refund) => {
+    setSelectedRefund(refund);
+    setDetailDialog(true);
+  };
+
   const handleAction = (refund, action) => {
     setSelectedRefund(refund);
     setActionType(action);
@@ -79,9 +86,16 @@ const SuperAdminRefundManagement = () => {
   const confirmAction = async () => {
     try {
       if (actionType === 'approve') {
-        await api.post(`/refunds/${selectedRefund.id}/approve/`);
+        await api.post(`/admin/process_refund/`, {
+          refund_id: selectedRefund.id,
+          action: 'approve'
+        });
       } else if (actionType === 'reject') {
-        await api.post(`/refunds/${selectedRefund.id}/reject/`, { reason });
+        await api.post(`/admin/process_refund/`, {
+          refund_id: selectedRefund.id,
+          action: 'reject',
+          reason
+        });
       }
       
       showSnackbar('Action effectuée avec succès', 'success');
@@ -188,21 +202,21 @@ const SuperAdminRefundManagement = () => {
               <TableBody>
                 {filteredRefunds.map((refund) => (
                   <TableRow key={refund.id}>
-                    <TableCell>
-                      <Box>
-                        <Typography variant="subtitle2">
-                          {refund.user?.username || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          ID: {refund.user?.id || 'N/A'}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {refund.event?.title || 'N/A'}
-                      </Typography>
-                    </TableCell>
+                                         <TableCell>
+                       <Box>
+                         <Typography variant="subtitle2">
+                           {refund.registration?.user?.username || 'N/A'}
+                         </Typography>
+                         <Typography variant="body2" color="textSecondary">
+                           ID: {refund.registration?.user?.id || 'N/A'}
+                         </Typography>
+                       </Box>
+                     </TableCell>
+                     <TableCell>
+                       <Typography variant="body2">
+                         {refund.registration?.event?.title || 'N/A'}
+                       </Typography>
+                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="success.main">
                         ${refund.amount_paid}
@@ -224,12 +238,16 @@ const SuperAdminRefundManagement = () => {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Box display="flex" gap={1}>
-                        <Tooltip title="Voir les détails">
-                          <IconButton size="small" color="primary">
-                            <ViewIcon />
-                          </IconButton>
-                        </Tooltip>
+                                             <Box display="flex" gap={1}>
+                         <Tooltip title="Voir les détails">
+                           <IconButton 
+                             size="small" 
+                             color="primary"
+                             onClick={() => handleViewDetails(refund)}
+                           >
+                             <ViewIcon />
+                           </IconButton>
+                         </Tooltip>
                         {refund.status === 'pending' && (
                           <>
                             <Tooltip title="Approuver">
@@ -269,12 +287,12 @@ const SuperAdminRefundManagement = () => {
         </DialogTitle>
         <DialogContent>
           <Box mt={2}>
-            <Typography variant="body2" gutterBottom>
-              <strong>Demandeur:</strong> {selectedRefund?.user?.username}
-            </Typography>
-            <Typography variant="body2" gutterBottom>
-              <strong>Événement:</strong> {selectedRefund?.event?.title}
-            </Typography>
+                         <Typography variant="body2" gutterBottom>
+               <strong>Demandeur:</strong> {selectedRefund?.registration?.user?.username}
+             </Typography>
+             <Typography variant="body2" gutterBottom>
+               <strong>Événement:</strong> {selectedRefund?.registration?.event?.title}
+             </Typography>
             <Typography variant="body2" gutterBottom>
                               <strong>Montant:</strong> ${selectedRefund?.amount_paid}
             </Typography>
@@ -324,8 +342,15 @@ const SuperAdminRefundManagement = () => {
           sx={{ width: '100%' }}
         >
           {snackbar.message}
-        </Alert>
-      </Snackbar>
+                 </Alert>
+       </Snackbar>
+
+      {/* Modal de détails du remboursement */}
+      <RefundDetailModal
+        open={detailDialog}
+        onClose={() => setDetailDialog(false)}
+        refund={selectedRefund}
+      />
     </Box>
   );
 };

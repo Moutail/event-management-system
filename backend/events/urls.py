@@ -7,7 +7,10 @@ from .views import (
     process_refund_view, approve_refund, reject_refund, system_health_check,
     super_admin_event_detail, super_admin_reject_event, super_admin_delete_event
 )
-from .admin_views import SuperAdminViewSet, platform_analytics, pending_moderation
+from .admin_views import (
+    SuperAdminViewSet, platform_analytics, pending_moderation,
+    super_admin_refunds_list, super_admin_process_refund, super_admin_bulk_process_refunds
+)
 
 # Configuration du routeur
 router = DefaultRouter()
@@ -49,8 +52,10 @@ urlpatterns = [
     path('tags_management/', views.tags_list, name='tags_list'),
     path('tags_management/<int:pk>/', views.tag_detail, name='tag_detail'),
     
-    # Route pour les remboursements
-    path('refunds/', views.super_admin_refunds_list, name='super_admin_refunds_list'),
+    # Routes pour la gestion des remboursements
+    path('admin/refunds/', super_admin_refunds_list, name='super_admin_refunds_list'),
+    path('admin/process_refund/', super_admin_process_refund, name='super_admin_process_refund'),
+    path('admin/bulk_process_refunds/', super_admin_bulk_process_refunds, name='super_admin_bulk_process_refunds'),
     
     # Route pour la santé du système
     path('admin/system_health/', system_health_check, name='system_health_check'),

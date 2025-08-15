@@ -38,11 +38,17 @@ class SuperAdminViewSet(viewsets.ViewSet):
             ).count()
             
             # Revenus globaux (excluant les remboursements traités)
-            total_revenue = EventRegistration.objects.filter(
-                payment_status='paid'
-            ).exclude(
-                refund_request__status='processed'
-            ).aggregate(total=Sum('price_paid')).get('total') or 0
+            try:
+                total_revenue = EventRegistration.objects.filter(
+                    payment_status='paid'
+                ).exclude(
+                    refund_request__status='processed'
+                ).aggregate(total=Sum('price_paid')).get('total') or 0
+            except Exception as e:
+                # Si la relation refund_request n'existe pas, calculer sans exclusion
+                total_revenue = EventRegistration.objects.filter(
+                    payment_status='paid'
+                ).aggregate(total=Sum('price_paid')).get('total') or 0
             
             # Remboursements
             total_refunds = RefundRequest.objects.filter(status='processed').count()
@@ -50,21 +56,32 @@ class SuperAdminViewSet(viewsets.ViewSet):
                 status='processed'
             ).aggregate(total=Sum('refund_amount')).get('total') or 0
             
-            # Statistiques de modération
-            from .models import EventHistory
-            moderation_actions = EventHistory.objects.count()
-            recent_moderations = EventHistory.objects.filter(
-                created_at__gte=thirty_days_ago
-            ).count()
-            
-            # Répartition des actions de modération
-            moderation_breakdown = {}
-            for action in ['approve', 'reject', 'suspend', 'publish']:
-                count = EventHistory.objects.filter(action=action).count()
-                moderation_breakdown[action] = count
-            
             # Statistiques sur 30 derniers jours
             thirty_days_ago = timezone.now() - timedelta(days=30)
+            
+            # Statistiques de modération
+            try:
+                from .models import EventHistory
+                moderation_actions = EventHistory.objects.count()
+                recent_moderations = EventHistory.objects.filter(
+                    created_at__gte=thirty_days_ago
+                ).count()
+                
+                # Répartition des actions de modération
+                moderation_breakdown = {}
+                for action in ['approve', 'reject', 'suspend', 'publish']:
+                    count = EventHistory.objects.filter(action=action).count()
+                    moderation_breakdown[action] = count
+            except Exception as e:
+                # Si EventHistory n'existe pas encore, utiliser des valeurs par défaut
+                moderation_actions = 0
+                recent_moderations = 0
+                moderation_breakdown = {
+                    'approve': 0,
+                    'reject': 0,
+                    'suspend': 0,
+                    'publish': 0
+                }
             new_users_30d = User.objects.filter(date_joined__gte=thirty_days_ago).count()
             new_events_30d = Event.objects.filter(created_at__gte=thirty_days_ago).count()
             new_registrations_30d = EventRegistration.objects.filter(
@@ -72,18 +89,24 @@ class SuperAdminViewSet(viewsets.ViewSet):
             ).count()
             
             # Top organisateurs (par nombre d'événements)
-            top_organizers = User.objects.filter(
-                events_organized__isnull=False
-            ).annotate(
-                event_count=Count('events_organized')
-            ).order_by('-event_count')[:5]
+            try:
+                top_organizers = User.objects.filter(
+                    events_organized__isnull=False
+                ).annotate(
+                    event_count=Count('events_organized')
+                ).order_by('-event_count')[:5]
+            except Exception as e:
+                top_organizers = []
             
             # Événements les plus populaires
-            popular_events = Event.objects.filter(
-                status='published'
-            ).annotate(
-                registration_count=Count('registrations')
-            ).order_by('-registration_count')[:5]
+            try:
+                popular_events = Event.objects.filter(
+                    status='published'
+                ).annotate(
+                    registration_count=Count('registrations')
+                ).order_by('-registration_count')[:5]
+            except Exception as e:
+                popular_events = []
             
             return Response({
                 'general_stats': {
@@ -570,8 +593,6 @@ def platform_analytics(request):
                 registered_at__gte=day_start,
                 registered_at__lt=day_end,
                 payment_status='paid'
-            ).exclude(
-                refund_request__status='processed'
             ).aggregate(total=Sum('price_paid')).get('total') or 0
             
             daily_stats.append({
@@ -627,15 +648,11 @@ def platform_analytics(request):
         revenue_30d = EventRegistration.objects.filter(
             registered_at__gte=thirty_days_ago,
             payment_status='paid'
-        ).exclude(
-            refund_request__status='processed'
         ).aggregate(total=Sum('price_paid')).get('total') or 0
         
         revenue_60d = EventRegistration.objects.filter(
             registered_at__gte=sixty_days_ago,
             payment_status='paid'
-        ).exclude(
-            refund_request__status='processed'
         ).aggregate(total=Sum('price_paid')).get('total') or 0
         
         revenue_growth = ((revenue_30d - (revenue_60d - revenue_30d)) / max(revenue_60d - revenue_30d, 1)) * 100 if revenue_60d > revenue_30d else 0
@@ -782,6 +799,256 @@ def pending_moderation(request):
     except Exception as e:
         return Response(
             {'error': f'Erreur lors de la récupération des éléments en attente: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def super_admin_refunds_list(request):
+    """Liste des remboursements pour l'administration"""
+    try:
+        refunds = RefundRequest.objects.select_related(
+            'registration__user',
+            'registration__event',
+            'processed_by'
+        ).order_by('-created_at')
+        
+        # Filtrage
+        status_filter = request.query_params.get('status')
+        search = request.query_params.get('search')
+        
+        if status_filter:
+            refunds = refunds.filter(status=status_filter)
+        
+        if search:
+            refunds = refunds.filter(
+                Q(registration__user__username__icontains=search) |
+                Q(registration__user__email__icontains=search) |
+                Q(registration__event__title__icontains=search) |
+                Q(reason__icontains=search)
+            )
+        
+        # Pagination
+        page_size = int(request.query_params.get('page_size', 20))
+        page = int(request.query_params.get('page', 1))
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        
+        total_count = refunds.count()
+        refunds_page = refunds[start_idx:end_idx]
+        
+        refunds_data = []
+        for refund in refunds_page:
+            refund_data = {
+                'id': refund.id,
+                'status': refund.status,
+                'reason': refund.reason,
+                'amount_paid': float(refund.amount_paid),
+                'refund_percentage': refund.refund_percentage,
+                'refund_amount': float(refund.refund_amount),
+                'created_at': refund.created_at,
+                'expires_at': refund.expires_at,
+                'processed_at': refund.processed_at,
+                'stripe_refund_id': refund.stripe_refund_id,
+                'registration': {
+                    'id': refund.registration.id,
+                    'user': {
+                        'id': refund.registration.user.id,
+                        'username': refund.registration.user.username,
+                        'email': refund.registration.user.email,
+                        'first_name': refund.registration.user.first_name,
+                        'last_name': refund.registration.user.last_name,
+                    },
+                    'event': {
+                        'id': refund.registration.event.id,
+                        'title': refund.registration.event.title,
+                        'start_date': refund.registration.event.start_date,
+                        'location': refund.registration.event.location,
+                        'organizer': {
+                            'username': refund.registration.event.organizer.username,
+                        }
+                    }
+                },
+                'processed_by': {
+                    'id': refund.processed_by.id,
+                    'username': refund.processed_by.username,
+                    'email': refund.processed_by.email,
+                } if refund.processed_by else None
+            }
+            refunds_data.append(refund_data)
+        
+        return Response({
+            'results': refunds_data,
+            'total_count': total_count,
+            'page': page,
+            'page_size': page_size,
+            'total_pages': (total_count + page_size - 1) // page_size,
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Erreur lors de la récupération des remboursements: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def super_admin_process_refund(request):
+    """Traiter un remboursement (approuver/rejeter/traiter)"""
+    try:
+        refund_id = request.data.get('refund_id')
+        action = request.data.get('action')  # 'approve', 'reject', 'process'
+        reason = request.data.get('reason', '')
+        
+        if not refund_id or not action:
+            return Response(
+                {'error': 'refund_id et action sont requis'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            refund = RefundRequest.objects.get(id=refund_id)
+        except RefundRequest.DoesNotExist:
+            return Response(
+                {'error': 'Remboursement non trouvé'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Actions de traitement
+        if action == 'approve':
+            if refund.status != 'pending':
+                return Response(
+                    {'error': 'Seuls les remboursements en attente peuvent être approuvés'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            refund.status = 'approved'
+            message = f"Remboursement approuvé par {request.user.username}"
+            
+        elif action == 'reject':
+            if refund.status != 'pending':
+                return Response(
+                    {'error': 'Seuls les remboursements en attente peuvent être rejetés'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            refund.status = 'rejected'
+            message = f"Remboursement rejeté par {request.user.username}: {reason}"
+            
+        elif action == 'process':
+            if refund.status != 'approved':
+                return Response(
+                    {'error': 'Seuls les remboursements approuvés peuvent être traités'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            refund.status = 'processed'
+            refund.processed_at = timezone.now()
+            refund.processed_by = request.user
+            message = f"Remboursement traité par {request.user.username}"
+            
+        else:
+            return Response(
+                {'error': 'Action non valide'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        refund.save()
+        
+        return Response({
+            'message': message,
+            'refund_status': refund.status,
+            'refund_id': refund.id,
+            'action_performed': action,
+            'timestamp': timezone.now()
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Erreur lors du traitement: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def super_admin_bulk_process_refunds(request):
+    """Traiter plusieurs remboursements en lot"""
+    try:
+        refund_ids = request.data.get('refund_ids', [])
+        action = request.data.get('action')  # 'approve', 'reject'
+        reason = request.data.get('reason', '')
+        
+        if not refund_ids or not action:
+            return Response(
+                {'error': 'refund_ids et action sont requis'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if action not in ['approve', 'reject']:
+            return Response(
+                {'error': 'Action non valide'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        results = []
+        for refund_id in refund_ids:
+            try:
+                refund = RefundRequest.objects.get(id=refund_id)
+                
+                # Vérifier que le remboursement peut être traité
+                if refund.status != 'pending':
+                    results.append({
+                        'refund_id': refund.id,
+                        'status': 'error',
+                        'message': f'Statut invalide: {refund.status}'
+                    })
+                    continue
+                
+                # Actions de traitement
+                if action == 'approve':
+                    refund.status = 'approved'
+                    message = f"Remboursement approuvé par {request.user.username}"
+                elif action == 'reject':
+                    refund.status = 'rejected'
+                    message = f"Remboursement rejeté par {request.user.username}: {reason}"
+                
+                refund.save()
+                
+                results.append({
+                    'refund_id': refund.id,
+                    'status': 'success',
+                    'message': message
+                })
+                
+            except RefundRequest.DoesNotExist:
+                results.append({
+                    'refund_id': refund_id,
+                    'status': 'error',
+                    'message': 'Remboursement non trouvé'
+                })
+            except Exception as e:
+                results.append({
+                    'refund_id': refund_id,
+                    'status': 'error',
+                    'message': f'Erreur: {str(e)}'
+                })
+        
+        success_count = len([r for r in results if r['status'] == 'success'])
+        error_count = len([r for r in results if r['status'] == 'error'])
+        
+        return Response({
+            'message': f'Traitement en lot terminé: {success_count} succès, {error_count} erreurs',
+            'results': results,
+            'summary': {
+                'total': len(refund_ids),
+                'success': success_count,
+                'errors': error_count
+            }
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Erreur lors du traitement en lot: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
