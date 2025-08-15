@@ -30,34 +30,13 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Éviter les boucles infinies
+    // Éviter les boucles infinies - version simplifiée
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-
-      // Ne pas essayer de rafraîchir le token si c'est déjà une requête de refresh
-      if (originalRequest.url.includes('/token/refresh/')) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
-      }
-
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          const response = await axios.post(`${API_BASE_URL}/token/refresh/`, {
-            refresh: refreshToken,
-          });
-          
-          localStorage.setItem('access_token', response.data.access);
-          originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
-          
-          return api(originalRequest);
-        }
-      } catch (refreshError) {
-        console.log('Refresh token failed, redirecting to login');
+      
+      // Si c'est une erreur 401, nettoyer les tokens et rediriger
+      if (!originalRequest.url.includes('/token/') && !originalRequest.url.includes('/auth/')) {
+        console.log('Token expiré, nettoyage et redirection');
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         
@@ -79,6 +58,8 @@ export const authAPI = {
   refreshToken: (refresh) => api.post('/token/refresh/', { refresh }),
   getCurrentUser: () => api.get('/auth/user/'),
   logout: () => api.post('/auth/logout/'),
+  changePassword: (oldPassword, newPassword) =>
+    api.post('/auth/change_password/', { old_password: oldPassword, new_password: newPassword }),
 };
 
 // Service des événements
@@ -94,6 +75,9 @@ export const eventAPI = {
   getEventStatistics: () => api.get('/events/statistics/'),
   getTicketTypes: (eventId) => api.get(`/events/${eventId}/ticket-types/`),
   createTicketType: (eventId, data) => api.post(`/events/${eventId}/ticket-types/`, data),
+  exportRegistrationsCSV: (eventId) => api.get(`/events/${eventId}/export_registrations_csv/`, { responseType: 'blob' }),
+  exportRegistrationsExcel: (eventId) => api.get(`/events/${eventId}/export_registrations_excel/`, { responseType: 'blob' }),
+  exportRegistrationsPDF: (eventId) => api.get(`/events/${eventId}/export_registrations_pdf/`, { responseType: 'blob' }),
   
   // CRUD des événements
   createEvent: (eventData) => {
@@ -156,12 +140,20 @@ export const eventAPI = {
     console.log('DEBUG: updateEvent - Données reçues:', eventData);
     console.log('DEBUG: updateEvent - Type de données:', typeof eventData);
     
+    // Accepter un FormData déjà construit
+    if (eventData instanceof FormData) {
+      console.log('DEBUG: updateEvent - Utilisation du FormData existant');
+      return api.patch(`/events/${id}/`, eventData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    }
+
     // Vérifier que eventData n'est pas null ou undefined
     if (!eventData || typeof eventData !== 'object') {
       console.error('DEBUG: updateEvent - eventData invalide:', eventData);
       return Promise.reject(new Error('Données d\'événement invalides'));
     }
-    
+
     const formData = new FormData();
     
     // Ajouter les champs de base
@@ -170,7 +162,7 @@ export const eventAPI = {
         if (eventData[key]) {
           formData.append(key, eventData[key]);
         }
-      } else if (key === 'tags' && Array.isArray(eventData[key])) {
+      } else if ((key === 'tags' || key === 'tag_ids') && Array.isArray(eventData[key])) {
         eventData[key].forEach(tagId => {
           formData.append('tag_ids', tagId);
         });
@@ -202,11 +194,23 @@ export const eventAPI = {
   getMyRegistrations: () => api.get('/registrations/'),
   cancelRegistration: (registrationId) => 
     api.post(`/registrations/${registrationId}/cancel/`),
+  cancelPayment: (registrationId) => 
+    api.post(`/registrations/${registrationId}/cancel_payment/`),
   confirmRegistration: (registrationId) => 
     api.post(`/registrations/${registrationId}/confirm/`),
   getRegistrationQr: (registrationId) => 
     api.get(`/registrations/${registrationId}/qr/`),
   getUpcomingRegistrations: () => api.get('/registrations/upcoming/'),
+  
+  // Gestion des listes d'attente
+  getWaitlistedRegistrations: (eventId) => api.get(`/events/${eventId}/waitlisted_registrations/`),
+  approveWaitlist: (registrationId) => api.post(`/registrations/${registrationId}/approve_waitlist/`),
+  rejectWaitlist: (registrationId, reason) => api.post(`/registrations/${registrationId}/reject_waitlist/`, { reason }),
+
+  // Gestion des remboursements
+  requestRefund: (registrationId, data) => api.post(`/registrations/${registrationId}/request_refund/`, data),
+  processRefund: (registrationId, action) => api.post(`/refund/${registrationId}/process/`, { action }),
+  getRefundRequests: (eventId) => api.get(`/events/${eventId}/refund_requests/`),
   
   // Historique
   getEventHistory: () => api.get('/history/'),
@@ -228,9 +232,10 @@ export const fileAPI = {
 };
 
 // Utilitaires
-export const formatDate = (dateString) => {
+export const formatDate = (dateString, customLocale = null) => {
   if (!dateString) return '';
-  return new Date(dateString).toLocaleDateString('fr-FR', {
+  const locale = customLocale || (typeof window !== 'undefined' && window.__APP_LOCALE__) || 'fr-FR';
+  return new Date(dateString).toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -239,12 +244,23 @@ export const formatDate = (dateString) => {
   });
 };
 
-export const formatPrice = (price) => {
+export const formatPrice = (price, customLocale = null) => {
   if (price === 0 || price === null || price === undefined) return 'Gratuit';
   // Convertir en nombre si c'est une chaîne
   const numericPrice = typeof price === 'string' ? parseFloat(price) : price;
   if (isNaN(numericPrice)) return 'Gratuit';
-  return `${numericPrice.toFixed(2)} €`;
+  const locale = customLocale || (typeof window !== 'undefined' && window.__APP_LOCALE__) || 'en-US';
+  const currencyByLocale = {
+    'fr-FR': 'USD',
+    'en-US': 'USD',
+    'es-ES': 'USD',
+  };
+  const currency = currencyByLocale[locale] || 'USD';
+  try {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(numericPrice);
+  } catch (_) {
+    return `${numericPrice.toFixed(2)} ${currency}`;
+  }
 };
 
 export const getEventStatusColor = (status) => {

@@ -11,10 +11,12 @@ const Layout = () => {
       <Sidebar />
       <Box
         component="main"
+        className="fade-in"
         sx={{
           flexGrow: 1,
           p: 3,
           mt: 8, // Pour compenser la hauteur du header
+          ml: { xs: 0, sm: '240px' }, // Marge à gauche pour la sidebar sur desktop
           backgroundColor: 'background.default',
         }}
       >

@@ -1,11 +1,50 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 from django.conf import settings
 import uuid
 import io
 from decimal import Decimal
+class UserProfile(models.Model):
+    ROLE_CHOICES = [
+        ('super_admin', 'Super Administrateur'),  # 👑 Niveau le plus élevé
+        ('organizer', 'Organisateur'),           # 🎪 Niveau intermédiaire
+        ('participant', 'Participant'),          # 👤 Niveau utilisateur
+        ('guest', 'Invité'),                     # 🚶‍♂️ Niveau visiteur
+    ]
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    phone = models.CharField(max_length=20, blank=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='participant')
+
+    def __str__(self) -> str:
+        return f"{self.user.username} ({self.role})"
+    
+    @property
+    def is_super_admin(self):
+        """Vérifie si l'utilisateur est un Super Admin"""
+        return self.role == 'super_admin'
+    
+    @property
+    def is_organizer(self):
+        """Vérifie si l'utilisateur est un Organisateur"""
+        return self.role == 'organizer'
+    
+    @property
+    def is_participant(self):
+        """Vérifie si l'utilisateur est un Participant"""
+        return self.role == 'participant'
+    
+    @property
+    def can_manage_all_events(self):
+        """Vérifie si l'utilisateur peut gérer tous les événements"""
+        return self.role == 'super_admin'
+    
+    @property
+    def can_manage_users(self):
+        """Vérifie si l'utilisateur peut gérer d'autres utilisateurs"""
+        return self.role == 'super_admin'
+
 
 try:
     import qrcode
@@ -17,12 +56,13 @@ except Exception:  # pragma: no cover - handled by requirements
 
 class Category(models.Model):
     """Modèle pour les catégories d'événements"""
-    name = models.CharField(max_length=100, unique=True, verbose_name="Nom")
-    description = models.TextField(blank=True, verbose_name="Description")
-    color = models.CharField(max_length=7, default="#1976d2", verbose_name="Couleur")
-    icon = models.CharField(max_length=50, blank=True, verbose_name="Icône")
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    color = models.CharField(max_length=7, default='#1976d2')  # Code couleur hex
+    icon = models.CharField(max_length=10, blank=True)  # Emoji ou icône
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = "Catégorie"
@@ -32,12 +72,13 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
-
 class Tag(models.Model):
     """Modèle pour les tags d'événements"""
-    name = models.CharField(max_length=50, unique=True, verbose_name="Nom")
-    color = models.CharField(max_length=7, default="#666666", verbose_name="Couleur")
+    name = models.CharField(max_length=50, unique=True)
+    color = models.CharField(max_length=7, default='#666666')
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = "Tag"
@@ -90,12 +131,19 @@ class Event(models.Model):
     # Relations
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Catégorie")
     tags = models.ManyToManyField(Tag, blank=True, verbose_name="Tags")
-    organizer = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Organisateur")
+    organizer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='events_organized', verbose_name="Organisateur")
     
     # Statut et métadonnées
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', verbose_name="Statut")
     is_featured = models.BooleanField(default=False, verbose_name="Événement en vedette")
     is_public = models.BooleanField(default=True, verbose_name="Public")
+    ACCESS_CHOICES = [
+        ('public', 'Public'),
+        ('private', 'Privé'),
+        ('invite', 'Sur invitation'),
+    ]
+    access_type = models.CharField(max_length=10, choices=ACCESS_CHOICES, default='public')
+    virtual_link = models.URLField(blank=True)
     
     # Informations de contact
     contact_email = models.EmailField(blank=True, verbose_name="Email de contact")
@@ -234,7 +282,7 @@ class EventRegistration(models.Model):
     ]
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='registrations', verbose_name="Événement")
-    user = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="Utilisateur")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='registrations', verbose_name="Utilisateur")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name="Statut")
     ticket_type = models.ForeignKey('TicketType', on_delete=models.SET_NULL, null=True, blank=True, related_name='registrations', verbose_name="Type de billet")
     price_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0, validators=[MinValueValidator(0)], verbose_name="Prix payé")
@@ -324,10 +372,131 @@ class EventHistory(models.Model):
         return f"{self.event.title} - {self.action} - {self.timestamp}" 
 
 
+class RefundPolicy(models.Model):
+    """Politique de remboursement pour un événement"""
+    REFUND_MODE_CHOICES = [
+        ('disabled', 'Remboursements désactivés'),
+        ('manual', 'Remboursement manuel uniquement'),
+        ('auto', 'Remboursement automatique'),
+        ('mixed', 'Manuel puis automatique après délai'),
+    ]
+    
+    event = models.OneToOneField(Event, on_delete=models.CASCADE, related_name='refund_policy')
+    mode = models.CharField(max_length=20, choices=REFUND_MODE_CHOICES, default='manual')
+    
+    # Délais en heures
+    auto_refund_delay_hours = models.PositiveIntegerField(
+        default=24, 
+        help_text="Délai en heures avant remboursement automatique (si mode auto/mixed)"
+    )
+    
+    # Pourcentages de remboursement selon le timing
+    refund_percentage_immediate = models.PositiveIntegerField(
+        default=100, validators=[MaxValueValidator(100)],
+        help_text="% remboursé si annulation immédiate"
+    )
+    refund_percentage_after_delay = models.PositiveIntegerField(
+        default=80, validators=[MaxValueValidator(100)],
+        help_text="% remboursé après le délai"
+    )
+    
+    # Limite temporelle (heures avant l'événement)
+    cutoff_hours_before_event = models.PositiveIntegerField(
+        default=24,
+        help_text="Nombre d'heures avant l'événement où les remboursements cessent"
+    )
+    
+    # Paramètres
+    allow_partial_refunds = models.BooleanField(
+        default=True,
+        help_text="Autoriser les remboursements partiels"
+    )
+    require_reason = models.BooleanField(
+        default=False,
+        help_text="Exiger une raison pour l'annulation"
+    )
+    
+    # Notifications
+    notify_organizer_on_cancellation = models.BooleanField(
+        default=True,
+        help_text="Notifier l'organisateur lors d'une annulation"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Politique remboursement - {self.event.title} ({self.mode})"
+    
+    def can_refund_now(self):
+        """Vérifie si l'événement accepte encore les remboursements"""
+        if self.mode == 'disabled':
+            return False
+        
+        from django.utils import timezone
+        hours_before = (self.event.start_date - timezone.now()).total_seconds() / 3600
+        return hours_before >= self.cutoff_hours_before_event
+    
+    def get_refund_percentage(self, hours_since_cancellation=0):
+        """Calcule le pourcentage de remboursement selon le délai"""
+        if hours_since_cancellation < self.auto_refund_delay_hours:
+            return self.refund_percentage_immediate
+        return self.refund_percentage_after_delay
+
+
+class RefundRequest(models.Model):
+    """Demande de remboursement"""
+    STATUS_CHOICES = [
+        ('pending', 'En attente'),
+        ('approved', 'Approuvé'),
+        ('processed', 'Traité'),
+        ('rejected', 'Rejeté'),
+        ('expired', 'Expiré'),
+    ]
+    
+    registration = models.OneToOneField(EventRegistration, on_delete=models.CASCADE, related_name='refund_request')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    reason = models.TextField(blank=True, help_text="Raison de l'annulation")
+    
+    # Montants
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, help_text="Montant initialement payé")
+    refund_percentage = models.PositiveIntegerField(validators=[MaxValueValidator(100)])
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Montant à rembourser")
+    
+    # Traitement
+    processed_at = models.DateTimeField(null=True, blank=True)
+    processed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='processed_refunds')
+    stripe_refund_id = models.CharField(max_length=100, blank=True, help_text="ID du remboursement Stripe")
+    
+    # Échéances
+    auto_process_at = models.DateTimeField(null=True, blank=True, help_text="Date de traitement automatique")
+    expires_at = models.DateTimeField(help_text="Date limite pour le remboursement")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Remboursement {self.registration.user.username} - {self.registration.event.title} ({self.status})"
+    
+    def can_auto_process(self):
+        """Vérifie si la demande peut être traitée automatiquement"""
+        from django.utils import timezone
+        return (
+            self.status == 'pending' and
+            self.auto_process_at and
+            timezone.now() >= self.auto_process_at
+        )
+
+
 class NotificationLog(models.Model):
     """Trace des notifications envoyées pour éviter les doublons."""
     TYPE_CHOICES = [
         ('reminder_1d', 'Rappel J-1'),
+        ('reminder_1h', 'Rappel 1h avant'),
         ('reminder_day', 'Rappel jour J'),
         ('update', 'Mise à jour'),
         ('thank_you', 'Remerciement'),

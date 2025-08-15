@@ -38,14 +38,16 @@ import {
   Clear as ClearIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr, enUS, es } from 'date-fns/locale';
 import { fetchMyEvents, deleteEvent, publishEvent, cancelEvent } from '../store/slices/eventSlice';
 import { getImageUrl } from '../services/api';
+import { useLocale } from '../hooks/useLocale';
 
 const MyEventsPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { myEvents, loading, error } = useSelector((state) => state.events);
+  const { formatDate, formatPrice } = useLocale();
   const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -302,13 +304,13 @@ const MyEventsPage = () => {
 
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="body2" color="text.secondary">
-                        📅 {format(new Date(event.start_date), 'dd MMM yyyy à HH:mm', { locale: fr })}
+                        📅 {formatDate(event.start_date)}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
                         📍 {event.location}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {event.is_free ? '🆓 Gratuit' : `💰 ${event.price}€`}
+                         {event.is_free ? '🆓 Gratuit' : `💰 ${formatPrice(event.price)}`}
                       </Typography>
                       {event.place_type === 'limited' && (
                         <Typography variant="body2" color="text.secondary">

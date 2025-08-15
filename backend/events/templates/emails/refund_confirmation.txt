@@ -1,0 +1,20 @@
+Bonjour {{ user.first_name|default:user.username }},
+
+✅ REMBOURSEMENT CONFIRMÉ
+
+Votre demande de remboursement pour l'événement "{{ event.title }}" a été traitée avec succès.
+
+💰 Détails du remboursement :
+• Montant remboursé : {{ refund_amount }}€
+• Pourcentage : {{ refund_request.refund_percentage }}%
+• Référence Stripe : {{ refund_request.stripe_refund_id }}
+
+Le remboursement apparaîtra sur votre moyen de paiement original sous 3-5 jours ouvrés.
+
+Si vous avez des questions, n'hésitez pas à nous contacter.
+
+Cordialement,
+L'équipe organisation
+
+
+

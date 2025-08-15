@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   Container,
@@ -41,11 +41,14 @@ import {
   Language as LanguageIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { fr } from 'date-fns/locale';
+import { fr, enUS, es } from 'date-fns/locale';
+import { setDarkMode, setLocale } from '../store/slices/uiSlice';
+import api, { authAPI } from '../services/api';
 
 const ProfilePage = () => {
   const dispatch = useDispatch();
   const { user, loading, error } = useSelector((state) => state.auth);
+  const { darkMode, locale } = useSelector((state) => state.ui);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     first_name: user?.first_name || '',
@@ -57,12 +60,22 @@ const ProfilePage = () => {
   });
 
   const [settings, setSettings] = useState({
-    darkMode: false,
     emailNotifications: true,
     pushNotifications: true,
     language: 'fr',
     timezone: 'Europe/Paris',
   });
+
+  // Charger les paramètres sauvegardés (hors mode sombre qui est géré globalement)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('profile_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setSettings(prev => ({ ...prev, ...parsed }));
+      }
+    } catch (_) {}
+  }, []);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -72,16 +85,17 @@ const ProfilePage = () => {
   };
 
   const handleSettingChange = (setting, value) => {
-    setSettings(prev => ({
-      ...prev,
-      [setting]: value
-    }));
+    setSettings(prev => {
+      const next = { ...prev, [setting]: value };
+      try { localStorage.setItem('profile_settings', JSON.stringify(next)); } catch (_) {}
+      return next;
+    });
   };
 
   const handleSave = async () => {
     try {
-      // Ici vous pouvez dispatcher une action pour mettre à jour le profil
-      // await dispatch(updateProfile(formData)).unwrap();
+      // TODO: brancher à un endpoint backend si dispo
+      try { localStorage.setItem('profile_form', JSON.stringify(formData)); } catch(_) {}
       setIsEditing(false);
     } catch (error) {
       console.error('Erreur lors de la mise à jour du profil:', error);
@@ -109,6 +123,8 @@ const ProfilePage = () => {
       </Container>
     );
   }
+
+  const dateFnsLocale = ({ 'fr-FR': fr, 'en-US': enUS, 'es-ES': es }[locale] || fr);
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
@@ -259,7 +275,7 @@ const ProfilePage = () => {
                 </ListItemIcon>
                 <ListItemText
                   primary="Membre depuis"
-                  secondary={user?.date_joined ? format(new Date(user.date_joined), 'dd MMM yyyy', { locale: fr }) : 'N/A'}
+                  secondary={user?.date_joined ? format(new Date(user.date_joined), 'dd MMM yyyy', { locale: dateFnsLocale }) : 'N/A'}
                 />
               </ListItem>
               <ListItem>
@@ -331,8 +347,8 @@ const ProfilePage = () => {
                     <FormControlLabel
                       control={
                         <Switch
-                          checked={settings.darkMode}
-                          onChange={(e) => handleSettingChange('darkMode', e.target.checked)}
+                          checked={!!darkMode}
+                          onChange={(e) => dispatch(setDarkMode(e.target.checked))}
                         />
                       }
                       label="Mode sombre"
@@ -352,16 +368,22 @@ const ProfilePage = () => {
                       </Typography>
                     </Box>
                     
-                    <FormControl fullWidth sx={{ mb: 2 }}>
+                     <FormControl fullWidth sx={{ mb: 2 }}>
                       <InputLabel>Langue</InputLabel>
                       <Select
-                        value={settings.language}
-                        onChange={(e) => handleSettingChange('language', e.target.value)}
+                         value={locale || 'fr-FR'}
+                         onChange={(e) => {
+                           const value = e.target.value;
+                           console.log('ProfilePage - Changing locale to:', value);
+                           dispatch(setLocale(value));
+                           handleSettingChange('language', value.startsWith('fr') ? 'fr' : value.startsWith('en') ? 'en' : 'es');
+                           // Plus besoin de recharger - la locale est maintenant réactive
+                         }}
                         label="Langue"
                       >
-                        <MenuItem value="fr">Français</MenuItem>
-                        <MenuItem value="en">English</MenuItem>
-                        <MenuItem value="es">Español</MenuItem>
+                         <MenuItem value="fr-FR">Français</MenuItem>
+                         <MenuItem value="en-US">English</MenuItem>
+                         <MenuItem value="es-ES">Español</MenuItem>
                       </Select>
                     </FormControl>
                     
@@ -396,6 +418,24 @@ const ProfilePage = () => {
                       variant="outlined"
                       fullWidth
                       sx={{ mb: 1 }}
+                      onClick={async () => {
+                        const old_password = window.prompt('Ancien mot de passe');
+                        if (old_password === null) return;
+                        const new_password = window.prompt('Nouveau mot de passe');
+                        if (new_password === null) return;
+                        try {
+                          await authAPI.changePassword(old_password, new_password);
+                          alert('Mot de passe modifié avec succès. Veuillez vous reconnecter.');
+                          // Forcer la reconnexion
+                          localStorage.removeItem('access_token');
+                          localStorage.removeItem('refresh_token');
+                          window.location.href = '/login';
+                        } catch (e) {
+                          const msg = e?.response?.data?.error || 'Échec du changement de mot de passe';
+                          const details = e?.response?.data?.details;
+                          alert(Array.isArray(details) ? `${msg}:\n- ${details.join('\n- ')}` : msg);
+                        }
+                      }}
                     >
                       Changer le mot de passe
                     </Button>
@@ -412,63 +452,26 @@ const ProfilePage = () => {
                       variant="outlined"
                       fullWidth
                       color="error"
+                      onClick={async () => {
+                        const ok = window.confirm("Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible.");
+                        if (!ok) return;
+                        try {
+                          // Appelle DELETE /auth/user/
+                          await api.delete('/auth/user/');
+                          // Nettoyage côté client
+                          localStorage.removeItem('access_token');
+                          localStorage.removeItem('refresh_token');
+                          window.location.href = '/login';
+                        } catch (e) {
+                          console.error('Suppression de compte échouée', e);
+                          alert("Suppression impossible pour le moment.");
+                        }
+                      }}
                     >
                       Supprimer le compte
                     </Button>
                   </CardContent>
                 </Card>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
-
-        {/* Statistiques du compte */}
-        <Grid item xs={12}>
-          <Paper elevation={3} sx={{ p: 4 }}>
-            <Typography variant="h5" component="h2" gutterBottom>
-              Statistiques du compte
-            </Typography>
-
-            <Grid container spacing={3}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ textAlign: 'center', p: 2 }}>
-                  <Typography variant="h4" color="primary.main">
-                    0
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Événements créés
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ textAlign: 'center', p: 2 }}>
-                  <Typography variant="h4" color="success.main">
-                    0
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Événements publiés
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ textAlign: 'center', p: 2 }}>
-                  <Typography variant="h4" color="info.main">
-                    0
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Inscriptions reçues
-                  </Typography>
-                </Box>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Box sx={{ textAlign: 'center', p: 2 }}>
-                  <Typography variant="h4" color="warning.main">
-                    0€
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Revenus générés
-                  </Typography>
-                </Box>
               </Grid>
             </Grid>
           </Paper>

@@ -17,12 +17,15 @@ import {
   fetchUpcomingEvents,
   fetchEventStatistics,
 } from '../store/slices/eventSlice';
-import { formatDate, formatPrice } from '../services/api';
+import { useLocale } from '../hooks/useLocale';
 
 const HomePage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { formatDate, formatPrice, locale } = useLocale();
   const { featuredEvents, upcomingEvents, statistics } = useSelector((state) => state.events);
+  
+  console.log('HomePage - Current locale:', locale);
 
   useEffect(() => {
     dispatch(fetchFeaturedEvents());
@@ -152,7 +155,7 @@ const HomePage = () => {
                         {formatDate(event.start_date)}
                       </Typography>
                       <Typography variant="body2" color="primary" fontWeight="bold">
-                        {formatPrice(event.price)}
+                       {formatPrice(event.price)}
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -202,7 +205,7 @@ const HomePage = () => {
                         {formatDate(event.start_date)}
                       </Typography>
                       <Typography variant="body2" color="primary" fontWeight="bold">
-                        {formatPrice(event.price)}
+                       {formatPrice(event.price)}
                       </Typography>
                     </Box>
                     <Typography variant="body2" color="text.secondary">

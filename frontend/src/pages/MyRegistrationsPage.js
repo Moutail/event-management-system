@@ -23,11 +23,13 @@ import {
   cancelRegistration,
   fetchUpcomingRegistrations 
 } from '../store/slices/eventSlice';
-import { formatDate, formatPrice, getImageUrl } from '../services/api';
+import { getImageUrl } from '../services/api';
+import { useLocale } from '../hooks/useLocale';
 
 const MyRegistrationsPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { formatDate, formatPrice } = useLocale();
   const { user } = useSelector((state) => state.auth);
   const { 
     myRegistrations, 

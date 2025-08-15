@@ -2,6 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   darkMode: localStorage.getItem('darkMode') === 'true',
+  locale: localStorage.getItem('locale') || 'fr-FR',
   sidebarOpen: false,
   notifications: [],
   loading: false,
@@ -29,6 +30,10 @@ const uiSlice = createSlice({
     setDarkMode: (state, action) => {
       state.darkMode = action.payload;
       localStorage.setItem('darkMode', state.darkMode);
+    },
+    setLocale: (state, action) => {
+      state.locale = action.payload || 'fr-FR';
+      try { localStorage.setItem('locale', state.locale); } catch(_) {}
     },
     toggleSidebar: (state) => {
       state.sidebarOpen = !state.sidebarOpen;
@@ -84,6 +89,7 @@ const uiSlice = createSlice({
 export const {
   toggleDarkMode,
   setDarkMode,
+  setLocale,
   toggleSidebar,
   setSidebarOpen,
   addNotification,

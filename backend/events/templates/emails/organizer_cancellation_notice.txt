@@ -1,0 +1,24 @@
+Bonjour {{ organizer.first_name|default:organizer.username }},
+
+📢 ANNULATION D'INSCRIPTION
+
+Un participant s'est désinscrit de votre événement "{{ event.title }}".
+
+👤 Participant : {{ user.first_name }} {{ user.last_name }} ({{ user.email }})
+📅 Événement : {{ event.title }}
+📍 Date : {{ event.start_date|date:"d/m/Y H:i" }}
+
+{% if reason %}
+💬 Raison de l'annulation :
+{{ reason }}
+{% endif %}
+
+💰 Remboursement : {{ registration.price_paid }}€ {% if registration.price_paid > 0 %}(en cours de traitement){% endif %}
+
+Vous pouvez gérer les remboursements depuis votre tableau de bord organisateur.
+
+Cordialement,
+Le système de gestion d'événements
+
+
+

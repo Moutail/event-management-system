@@ -24,7 +24,7 @@ import {
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { fr } from 'date-fns/locale';
+import { fr, enUS, es } from 'date-fns/locale';
 import { Add as AddIcon, Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
 import { createEvent, fetchCategories, fetchTags } from '../store/slices/eventSlice';
 import { eventAPI } from '../services/api';
@@ -35,6 +35,8 @@ const CreateEventPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { categories, tags, loading, error } = useSelector((state) => state.events);
+  const { locale } = useSelector((state) => state.ui);
+  const dateFnsLocale = ({ 'fr-FR': fr, 'en-US': enUS, 'es-ES': es }[locale] || fr);
   const [selectedTags, setSelectedTags] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
   const [selectedImageFile, setSelectedImageFile] = useState(null);
@@ -378,7 +380,7 @@ const CreateEventPage = () => {
                   <TextField label="Nom" fullWidth value={newTicket.name} onChange={(e)=>setNewTicket({...newTicket,name:e.target.value})} />
                 </Grid>
                 <Grid item xs={6} md={2}>
-                  <TextField label="Prix" type="number" fullWidth value={newTicket.price} onChange={(e)=>setNewTicket({...newTicket,price:e.target.value})} />
+                  <TextField label="Prix ($)" type="number" fullWidth value={newTicket.price} onChange={(e)=>setNewTicket({...newTicket,price:e.target.value})} />
                 </Grid>
                 <Grid item xs={6} md={2}>
                   <TextField label="Quantité" type="number" fullWidth value={newTicket.quantity} onChange={(e)=>setNewTicket({...newTicket,quantity:e.target.value})} />
@@ -390,7 +392,7 @@ const CreateEventPage = () => {
                   <FormControlLabel control={<Switch checked={newTicket.is_discount_active} onChange={(e)=>setNewTicket({...newTicket,is_discount_active:e.target.checked})} />} label="Réduction active" />
                 </Grid>
                 <Grid item xs={6} md={2}>
-                  <TextField label="Prix remisé" type="number" fullWidth value={newTicket.discount_price} onChange={(e)=>setNewTicket({...newTicket,discount_price:e.target.value})} />
+                  <TextField label="Prix remisé ($)" type="number" fullWidth value={newTicket.discount_price} onChange={(e)=>setNewTicket({...newTicket,discount_price:e.target.value})} />
                 </Grid>
                 <Grid item xs={6} md={2}>
                   <TextField label="Réduction %" type="number" fullWidth value={newTicket.discount_percent} onChange={(e)=>setNewTicket({...newTicket,discount_percent:e.target.value})} />
@@ -407,7 +409,7 @@ const CreateEventPage = () => {
                 <Box sx={{ display:'flex', flexDirection:'column', gap:1 }}>
                   {ticketTypes.map((tt,idx)=> (
                     <Box key={idx} sx={{ p:1.5, border:'1px solid #eee', borderRadius:1, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <Typography>{tt.name} — {tt.is_discount_active && tt.discount_price ? <><span style={{textDecoration:'line-through', marginRight:6}}>{Number(tt.price).toFixed(2)} €</span><strong>{Number(tt.discount_price).toFixed(2)} €</strong></> : <>{Number(tt.price).toFixed(2)} €</>} {tt.is_vip ? ' • VIP' : ''} {tt.quantity? ` • Qté: ${tt.quantity}`:''}</Typography>
+                      <Typography>{tt.name} — {tt.is_discount_active && tt.discount_price ? <><span style={{textDecoration:'line-through', marginRight:6}}>${Number(tt.price).toFixed(2)}</span><strong>${Number(tt.discount_price).toFixed(2)}</strong></> : <>${Number(tt.price).toFixed(2)}</>} {tt.is_vip ? ' • VIP' : ''} {tt.quantity? ` • Qté: ${tt.quantity}`:''}</Typography>
                       <Button color="error" onClick={()=> setTicketTypes(ticketTypes.filter((_,i)=>i!==idx))}>Supprimer</Button>
                     </Box>
                   ))}
@@ -423,7 +425,7 @@ const CreateEventPage = () => {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={fr}>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateFnsLocale}>
                 <Controller
                   name="start_date"
                   control={control}
@@ -446,7 +448,7 @@ const CreateEventPage = () => {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={fr}>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateFnsLocale}>
                 <Controller
                   name="end_date"
                   control={control}
@@ -581,7 +583,7 @@ const CreateEventPage = () => {
                   render={({ field }) => (
                     <TextField
                       {...field}
-                      label="Prix (€)"
+                     label="Prix ($)"
                       type="number"
                       fullWidth
                       error={!!errors.price}

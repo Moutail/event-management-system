@@ -24,9 +24,10 @@ import {
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { fr } from 'date-fns/locale';
+import { fr, enUS, es } from 'date-fns/locale';
 import { Save as SaveIcon, Cancel as CancelIcon, Delete as DeleteIcon } from '@mui/icons-material';
-import { updateEvent, fetchEventById, fetchCategories, fetchTags, deleteEvent } from '../store/slices/eventSlice';
+import { updateEvent, fetchEventById, fetchCategories, fetchTags, deleteEvent, fetchMyEvents, fetchEvents } from '../store/slices/eventSlice';
+import { showSnackbar } from '../store/slices/uiSlice';
 import { getImageUrl } from '../services/api';
 
 const EditEventPage = () => {
@@ -34,6 +35,8 @@ const EditEventPage = () => {
   const dispatch = useDispatch();
   const { id } = useParams();
   const { currentEvent, categories, tags, loading, error } = useSelector((state) => state.events);
+  const { locale } = useSelector((state) => state.ui);
+  const dateFnsLocale = ({ 'fr-FR': fr, 'en-US': enUS, 'es-ES': es }[locale] || fr);
   const [selectedTags, setSelectedTags] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
   const [selectedImageFile, setSelectedImageFile] = useState(null);
@@ -242,8 +245,15 @@ const EditEventPage = () => {
 
     try {
       console.log('Envoi de la requête de mise à jour...');
-      await dispatch(updateEvent({ id, eventData: formData })).unwrap();
+      const updated = await dispatch(updateEvent({ id, eventData: formData })).unwrap();
       console.log('✅ Mise à jour réussie');
+      // Rafraîchir les données pour refléter immédiatement le changement
+      await Promise.all([
+        dispatch(fetchEventById(id)),
+        dispatch(fetchMyEvents()),
+        dispatch(fetchEvents({})),
+      ]);
+      dispatch(showSnackbar({ message: 'Événement mis à jour', severity: 'success' }));
       navigate(`/events/${id}`);
     } catch (error) {
       console.error('❌ Erreur lors de la mise à jour:', error);
@@ -411,7 +421,7 @@ const EditEventPage = () => {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={fr}>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateFnsLocale}>
                 <Controller
                   name="start_date"
                   control={control}
@@ -434,7 +444,7 @@ const EditEventPage = () => {
             </Grid>
 
             <Grid item xs={12} md={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={fr}>
+              <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateFnsLocale}>
                 <Controller
                   name="end_date"
                   control={control}
@@ -569,7 +579,7 @@ const EditEventPage = () => {
                   render={({ field }) => (
                     <TextField
                       {...field}
-                      label="Prix (€)"
+                      label="Prix ($)"
                       type="number"
                       fullWidth
                       error={!!errors.price}

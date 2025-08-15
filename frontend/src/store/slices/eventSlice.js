@@ -233,6 +233,18 @@ export const cancelRegistration = createAsyncThunk(
   }
 );
 
+export const cancelPayment = createAsyncThunk(
+  'events/cancelPayment',
+  async (registrationId, { rejectWithValue }) => {
+    try {
+      const response = await eventAPI.cancelPayment(registrationId);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(extractErrorMessage(error, 'Erreur d\'annulation du paiement'));
+    }
+  }
+);
+
 export const fetchUpcomingRegistrations = createAsyncThunk(
   'events/fetchUpcomingRegistrations',
   async (_, { rejectWithValue }) => {
@@ -541,6 +553,23 @@ const eventSlice = createSlice({
         }
       })
       .addCase(cancelRegistration.rejected, (state, action) => {
+        state.registrationLoading = false;
+        state.registrationError = action.payload;
+      })
+      
+      // Cancel Payment
+      .addCase(cancelPayment.pending, (state) => {
+        state.registrationLoading = true;
+        state.registrationError = null;
+      })
+      .addCase(cancelPayment.fulfilled, (state, action) => {
+        state.registrationLoading = false;
+        // Mettre à jour la liste des inscriptions
+        state.myRegistrations = state.myRegistrations.map(reg => 
+          reg.id === action.payload.id ? action.payload : reg
+        );
+      })
+      .addCase(cancelPayment.rejected, (state, action) => {
         state.registrationLoading = false;
         state.registrationError = action.payload;
       })

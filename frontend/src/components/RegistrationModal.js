@@ -17,14 +17,15 @@ import {
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { showSnackbar } from '../store/slices/uiSlice';
-import { registerForEvent } from '../store/slices/eventSlice';
-import api, { eventAPI } from '../services/api';
+import { registerForEvent, cancelPayment, fetchEventById } from '../store/slices/eventSlice';
+import api, { eventAPI, formatPrice } from '../services/api';
 import { CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
 
 const RegistrationModal = ({ open, onClose, event }) => {
   const dispatch = useDispatch();
   // Important: ne pas appeler useStripe()/useElements ici pour éviter l'erreur sans <Elements>
   const { registrationLoading, registrationError } = useSelector((state) => state.events);
+  const { locale } = useSelector((state) => state.ui);
   
   const [formData, setFormData] = useState({
     notes: '',
@@ -61,24 +62,32 @@ const RegistrationModal = ({ open, onClose, event }) => {
     setPaymentError('');
 
     try {
-      // 1) Créer l'inscription (peut être waitlisted)
-      const payload = { event: event.id, notes: formData.notes, special_requirements: formData.special_requirements };
-      if (formData.ticket_type_id !== '' && formData.ticket_type_id !== undefined && formData.ticket_type_id !== null) {
-        payload.ticket_type_id = Number(formData.ticket_type_id);
-      }
-      const reg = await dispatch(registerForEvent(payload)).unwrap();
+      // Si événement gratuit, créer l'inscription directement
+      if (!isPaid) {
+        const payload = { event: event.id, notes: formData.notes, special_requirements: formData.special_requirements };
+        if (formData.ticket_type_id !== '' && formData.ticket_type_id !== undefined && formData.ticket_type_id !== null) {
+          payload.ticket_type_id = Number(formData.ticket_type_id);
+        }
+        await dispatch(registerForEvent(payload)).unwrap();
 
-      // 2) Si paiement requis, afficher la section de paiement (gérée par Stripe Elements)
-      if (Number(reg.price_paid) > 0 || isPaid) {
-        setPendingReg(reg);
-        dispatch(showSnackbar({ message: "Inscription créée. Procédez au paiement pour finaliser et recevoir votre QR par email.", severity: 'info', persist: true }));
-        return; // Laisser l'utilisateur payer via la section dédiée
+        // Reset and close
+        setFormData({ notes: '', special_requirements: '', ticket_type_id: '' });
+        // Rafraîchir les données de l'événement pour mettre à jour le compteur
+        if (event?.id) {
+          dispatch(fetchEventById(event.id));
+        }
+        dispatch(showSnackbar({ message: "Inscription confirmée. Consultez votre email pour votre QR.", severity: 'success', persist: true }));
+        onClose();
+      } else {
+        // Si événement payant, afficher directement la section de paiement SANS créer d'inscription
+        setPendingReg({ 
+          event: event.id, 
+          notes: formData.notes, 
+          special_requirements: formData.special_requirements,
+          ticket_type_id: formData.ticket_type_id !== '' ? Number(formData.ticket_type_id) : null
+        });
+        dispatch(showSnackbar({ message: "Procédez au paiement pour confirmer votre inscription.", severity: 'info', persist: true }));
       }
-
-      // Reset and close
-      setFormData({ notes: '', special_requirements: '', ticket_type_id: '' });
-      dispatch(showSnackbar({ message: "Inscription confirmée. Consultez votre email pour votre QR.", severity: 'success', persist: true }));
-      onClose();
     } catch (error) {
       console.error('Erreur lors de l\'inscription:', error);
     } finally {
@@ -89,7 +98,15 @@ const RegistrationModal = ({ open, onClose, event }) => {
   const handleClose = () => {
     setFormData({ notes: '', special_requirements: '', ticket_type_id: '' });
     setPaymentError('');
+    setPendingReg(null);
     onClose();
+  };
+
+  const handleCancelPayment = () => {
+    // Maintenant c'est simple : on annule juste le processus de paiement
+    // Aucune inscription n'a été créée, donc rien à supprimer côté serveur
+    setPendingReg(null);
+    dispatch(showSnackbar({ message: "Processus d'inscription annulé. Vous pouvez recommencer si vous le souhaitez.", severity: 'info' }));
   };
 
   if (!event) return null;
@@ -118,9 +135,9 @@ const RegistrationModal = ({ open, onClose, event }) => {
           }}>
             <Typography variant="h6" sx={{ mb: 1 }}>{event.title}</Typography>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', color: 'text.secondary' }}>
-              <Typography variant="body2">📅 {new Date(event.start_date).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Typography>
+              <Typography variant="body2">📅 {new Date(event.start_date).toLocaleDateString(locale || 'fr-FR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Typography>
               <Typography variant="body2">📍 {event.location}</Typography>
-              <Typography variant="body2">{event.is_free ? '🆓 Gratuit' : `💰 ${event.price} €`}</Typography>
+              <Typography variant="body2">{event.is_free ? '🆓 Gratuit' : `💰 ${formatPrice(event.price)}`}</Typography>
             </Box>
           </Box>
 
@@ -133,22 +150,26 @@ const RegistrationModal = ({ open, onClose, event }) => {
               value={formData.ticket_type_id}
               onChange={handleInputChange}
             >
-              <MenuItem value="">Par défaut {Number(event.price) > 0 ? `(${event.price} €)` : '(Gratuit)'}</MenuItem>
-              {ticketTypes.map(tt => (
-                <MenuItem key={tt.id} value={tt.id}>
-                  {tt.name} — {tt.effective_price > 0 ? (
+              <MenuItem value="">Par défaut {Number(event.price) > 0 ? `(${formatPrice(event.price)})` : '(Gratuit)'}</MenuItem>
+              {ticketTypes.map(tt => {
+                const remaining = tt.available_quantity;
+                const isSoldOut = remaining === 0;
+                return (
+                <MenuItem key={tt.id} value={tt.id} disabled={isSoldOut}>
+                   {tt.name} — {Number(tt.effective_price) > 0 ? (
                     tt.has_discount ? (
                       <>
-                        <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{Number(tt.price).toFixed(2)} €</span>
-                        <strong>{Number(tt.effective_price).toFixed(2)} €</strong>
+                        <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{formatPrice(Number(tt.price))}</span>
+                        <strong>{formatPrice(Number(tt.effective_price))}</strong>
                       </>
                     ) : (
-                      <>{Number(tt.effective_price).toFixed(2)} €</>
+                      <>{formatPrice(Number(tt.effective_price))}</>
                     )
                   ) : 'Gratuit'}
-                  {tt.available_quantity !== null ? ` (restant: ${tt.available_quantity})` : ''}
+                  {remaining !== null && remaining !== undefined ? ` (restant: ${remaining})` : ''}
+                  {isSoldOut ? ' — Épuisé' : ''}
                 </MenuItem>
-              ))}
+              )})}
             </Select>
           </FormControl>
 
@@ -184,15 +205,20 @@ const RegistrationModal = ({ open, onClose, event }) => {
 
           {pendingReg && isPaid && stripeEnabled && (
             <PaymentSection
-              registrationId={pendingReg.id}
+              registrationData={pendingReg}
               setPaymentError={setPaymentError}
               setPaymentLoading={setPaymentLoading}
               onPaid={async () => {
                 setFormData({ notes: '', special_requirements: '', ticket_type_id: '' });
                 setPendingReg(null);
+                // Rafraîchir les données de l'événement pour mettre à jour le compteur
+                if (event?.id) {
+                  dispatch(fetchEventById(event.id));
+                }
                 dispatch(showSnackbar({ message: "Paiement confirmé. Votre billet (QR) a été envoyé à votre email.", severity: 'success', persist: true }));
                 onClose();
               }}
+              onCancel={handleCancelPayment}
             />
           )}
           {pendingReg && isPaid && !stripeEnabled && (
@@ -204,15 +230,24 @@ const RegistrationModal = ({ open, onClose, event }) => {
 
         <DialogActions>
           <Button onClick={handleClose} disabled={registrationLoading || paymentLoading}>
-            Annuler
+            Fermer
           </Button>
+          {pendingReg && isPaid && (
+            <Button 
+              onClick={handleCancelPayment} 
+              disabled={registrationLoading || paymentLoading}
+              color="error"
+            >
+              Annuler l'inscription
+            </Button>
+          )}
           <Button
             type="submit"
             variant="contained"
-            disabled={registrationLoading || paymentLoading}
+            disabled={registrationLoading || paymentLoading || (pendingReg && isPaid)}
             startIcon={(registrationLoading || paymentLoading) ? <CircularProgress size={20} /> : null}
           >
-            {(registrationLoading || paymentLoading) ? 'Traitement...' : (pendingReg && isPaid ? 'Inscription créée - procéder au paiement ci-dessous' : 'Confirmer l\'inscription')}
+            {(registrationLoading || paymentLoading) ? 'Traitement...' : (pendingReg && isPaid ? 'Procéder au paiement ci-dessous' : (isPaid ? 'Procéder au paiement' : 'Confirmer l\'inscription'))}
           </Button>
         </DialogActions>
       </form>
@@ -223,9 +258,10 @@ const RegistrationModal = ({ open, onClose, event }) => {
 export default RegistrationModal; 
 
 // Section de paiement isolée qui nécessite le contexte <Elements>
-const PaymentSection = ({ registrationId, setPaymentError, setPaymentLoading, onPaid }) => {
+const PaymentSection = ({ registrationData, setPaymentError, setPaymentLoading, onPaid, onCancel }) => {
   const stripe = useStripe();
   const elements = useElements();
+  const dispatch = useDispatch();
 
   const handlePay = async () => {
     setPaymentError('');
@@ -235,24 +271,73 @@ const PaymentSection = ({ registrationId, setPaymentError, setPaymentLoading, on
     }
     try {
       setPaymentLoading(true);
-      const intent = await api.post(`/registrations/${registrationId}/create_payment_intent/`).then(r => r.data);
+      
+      // 1. Créer l'inscription d'abord
+      const payload = { 
+        event: registrationData.event, 
+        notes: registrationData.notes, 
+        special_requirements: registrationData.special_requirements 
+      };
+      if (registrationData.ticket_type_id) {
+        payload.ticket_type_id = registrationData.ticket_type_id;
+      }
+      const registration = await dispatch(registerForEvent(payload)).unwrap();
+
+      // 2. Créer le payment intent
+      const intent = await api.post(`/registrations/${registration.id}/create_payment_intent/`).then(r => r.data);
+      
+      // 3. Effectuer le paiement
       const card = elements.getElement(CardElement);
       const { error, paymentIntent } = await stripe.confirmCardPayment(intent.client_secret, { payment_method: { card } });
       if (error) {
+        // Si le paiement échoue, annuler l'inscription qui vient d'être créée
+        try {
+          await dispatch(cancelPayment(registration.id));
+        } catch (e) {
+          console.error('Erreur lors de l\'annulation après échec de paiement:', e);
+        }
         setPaymentError(error.message || 'Paiement échoué');
         setPaymentLoading(false);
         return;
       }
+      
+      // 4. Confirmer le paiement côté serveur et récupérer le statut final
+      let finalRegistration = registration;
       try {
-        await api.post(`/registrations/${registrationId}/confirm_payment/`, { payment_intent_id: paymentIntent?.id || intent.payment_intent_id });
+        const confirmResponse = await api.post(`/registrations/${registration.id}/confirm_payment/`, { payment_intent_id: paymentIntent?.id || intent.payment_intent_id });
+        finalRegistration = confirmResponse.data;
       } catch (e) {
         console.error('Erreur de confirmation serveur:', e);
       }
+      
       setPaymentLoading(false);
+      
+      // Afficher le message approprié selon le statut final
+      if (finalRegistration.status === 'waitlisted') {
+        dispatch(showSnackbar({ 
+          message: "Paiement confirmé. Votre inscription est en attente de validation par l'organisateur.", 
+          severity: 'warning', 
+          persist: true 
+        }));
+      } else if (finalRegistration.status === 'confirmed') {
+        dispatch(showSnackbar({ 
+          message: "Paiement confirmé. Votre billet (QR) a été envoyé à votre email.", 
+          severity: 'success', 
+          persist: true 
+        }));
+      } else {
+        dispatch(showSnackbar({ 
+          message: "Paiement confirmé. Votre inscription est en cours de traitement.", 
+          severity: 'info', 
+          persist: true 
+        }));
+      }
+      
       onPaid?.();
     } catch (e) {
       setPaymentLoading(false);
-      setPaymentError('Erreur de paiement');
+      setPaymentError('Erreur lors de l\'inscription ou du paiement');
+      console.error('Erreur complète:', e);
     }
   };
 
@@ -262,7 +347,10 @@ const PaymentSection = ({ registrationId, setPaymentError, setPaymentLoading, on
       <Box sx={{ p: 1.5, border: '1px solid #ddd', borderRadius: 1 }}>
         <CardElement options={{ hidePostalCode: true }} />
       </Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+        <Button variant="outlined" color="error" onClick={onCancel}>
+          Annuler l'inscription
+        </Button>
         <Button variant="contained" onClick={handlePay}>Payer</Button>
       </Box>
     </Box>

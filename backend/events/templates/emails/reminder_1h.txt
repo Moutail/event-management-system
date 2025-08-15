@@ -1,0 +1,17 @@
+Bonjour {{ user.first_name|default:user.username }},
+
+⏰ DERNIERE HEURE ! 
+
+L'événement "{{ event.title }}" commence dans 1 heure !
+
+🕐 Heure de début: {{ event.start_date|date:"H:i" }}
+📍 Lieu: {{ event.location }}
+
+N'oubliez pas d'apporter votre billet (QR code) !
+
+À très bientôt !
+
+L'équipe organisatrice
+
+
+

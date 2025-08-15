@@ -13,24 +13,19 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    """Sérialiseur pour les catégories"""
-    event_count = serializers.SerializerMethodField()
-
+    """Serializer pour les catégories"""
     class Meta:
         model = Category
-        fields = '__all__'
+        fields = ['id', 'name', 'description', 'color', 'icon', 'created_at', 'updated_at', 'is_active']
         read_only_fields = ['id', 'created_at', 'updated_at']
-
-    def get_event_count(self, obj):
-        return obj.event_set.count()
 
 
 class TagSerializer(serializers.ModelSerializer):
-    """Sérialiseur pour les tags"""
+    """Serializer pour les tags"""
     class Meta:
         model = Tag
-        fields = '__all__'
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'name', 'color', 'created_at', 'updated_at', 'is_active']
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class EventRegistrationSerializer(serializers.ModelSerializer):
@@ -90,7 +85,7 @@ class EventSerializer(serializers.ModelSerializer):
         ]
 
     def get_registration_count(self, obj):
-        return obj.registrations.count()
+        return obj.registrations.filter(status__in=['confirmed', 'attended']).count()
 
     def get_confirmed_registration_count(self, obj):
         return obj.registrations.filter(status='confirmed').count()
@@ -272,10 +267,10 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
         ticket_type = None
         price_paid = 0
 
-        # Réactiver une inscription annulée si elle existe (évite le blocage unique_together)
+        # Réactiver une inscription annulée ou en attente non payée si elle existe (évite le blocage unique_together)
         existing = EventRegistration.objects.filter(event=validated_data['event'], user=user).first()
-        if existing and existing.status != 'cancelled':
-            # Déjà inscrit (actif)
+        if existing and existing.status not in ['cancelled'] and not (existing.status == 'pending' and existing.payment_status == 'unpaid'):
+            # Déjà inscrit (actif) ou en attente avec paiement en cours
             raise serializers.ValidationError("Vous êtes déjà inscrit à cet événement.")
         # Marquer l'utilisateur
         validated_data['user'] = user
@@ -283,15 +278,19 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
             ticket_type = TicketType.objects.filter(id=ticket_type_id, event=validated_data['event']).first()
             if ticket_type is None:
                 raise serializers.ValidationError("Type de billet invalide pour cet événement.")
-            price_paid = ticket_type.price
+            # Appliquer le prix effectif (réduction incluse le cas échéant)
+            try:
+                price_paid = ticket_type.effective_price
+            except Exception:
+                price_paid = ticket_type.price
 
             # Capacity check per ticket type
             if ticket_type.quantity is not None and ticket_type.sold_count >= ticket_type.quantity:
                 # Put on waitlist
                 validated_data['status'] = 'waitlisted'
 
-        # Si une inscription annulée existe, la réactiver plutôt que créer une nouvelle
-        if existing and existing.status == 'cancelled':
+        # Si une inscription annulée ou en attente non payée existe, la réactiver plutôt que créer une nouvelle
+        if existing and (existing.status == 'cancelled' or (existing.status == 'pending' and existing.payment_status == 'unpaid')):
             registration = existing
             # reset champs
             registration.status = validated_data.get('status', 'pending')
@@ -319,9 +318,18 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
                 registration.price_paid = event.price
                 registration.save(update_fields=['price_paid'])
 
-        # Mise à jour compteurs et confirmation uniquement pour gratuit
+        # Vérification de la capacité générale de l'événement pour décider du statut final
         event = registration.event
         is_paid_amount = (registration.price_paid or 0) > 0
+        
+        # Vérifier si l'événement a atteint sa capacité maximale
+        if registration.status != 'waitlisted':
+            if event.place_type == 'limited' and event.max_capacity is not None:
+                current_confirmed = event.registrations.filter(status__in=['confirmed', 'attended']).count()
+                if current_confirmed >= event.max_capacity:
+                    # Événement complet → mettre en liste d'attente
+                    registration.status = 'waitlisted'
+                    registration.save(update_fields=['status', 'updated_at'])
 
         if registration.status != 'waitlisted':
             if not is_paid_amount:
@@ -346,10 +354,11 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
 class TicketTypeSerializer(serializers.ModelSerializer):
     has_discount = serializers.BooleanField(read_only=True)
     effective_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    available_quantity = serializers.IntegerField(read_only=True, allow_null=True)
     class Meta:
         model = TicketType
         fields = '__all__'
-        read_only_fields = ['id', 'sold_count', 'created_at', 'has_discount', 'effective_price']
+        read_only_fields = ['id', 'sold_count', 'created_at', 'has_discount', 'effective_price', 'available_quantity']
 
     def validate(self, attrs):
         from decimal import Decimal, ROUND_HALF_UP
@@ -415,6 +424,7 @@ class TicketTypeSerializer(serializers.ModelSerializer):
 class TicketTypeListSerializer(serializers.ModelSerializer):
     has_discount = serializers.BooleanField(read_only=True)
     effective_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    available_quantity = serializers.IntegerField(read_only=True, allow_null=True)
     class Meta:
         model = TicketType
         fields = ['id', 'name', 'price', 'discount_price', 'discount_percent', 'is_discount_active', 'effective_price', 'has_discount', 'quantity', 'is_vip', 'available_quantity', 'sale_start', 'sale_end']

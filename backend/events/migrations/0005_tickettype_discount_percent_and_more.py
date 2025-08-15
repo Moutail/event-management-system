@@ -8,7 +8,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('events', '0004_add_missing_qr_columns'),
+        ('events', '0003_alter_eventregistration_price_paid_and_more'),
     ]
 
     operations = [

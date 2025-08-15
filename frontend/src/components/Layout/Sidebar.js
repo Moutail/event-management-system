@@ -8,6 +8,8 @@ import {
   ListItemText,
   Divider,
   Box,
+  Avatar,
+  Typography,
 } from '@mui/material';
 import {
   Home as HomeIcon,
@@ -17,6 +19,7 @@ import {
   Person as PersonIcon,
   Bookmark as BookmarkIcon,
   QrCodeScanner as QrCodeScannerIcon,
+  AdminPanelSettings as SuperAdminIcon,
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -48,16 +51,38 @@ const Sidebar = () => {
 
   const drawer = (
     <Box>
-      <Box sx={{ p: 2 }}>
-        <h3>Menu</h3>
+      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <Avatar src={user?.profile_picture} sx={{ width: 40, height: 40 }} />
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            {user?.username || 'Utilisateur'}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            {user?.email || 'Bienvenue'}
+          </Typography>
+        </Box>
       </Box>
       <Divider />
       <List>
-        {(
-          user && user.is_staff
-            ? [...baseMenuItems.slice(0, 6), { text: 'Scanner billets', icon: <QrCodeScannerIcon />, path: '/scan' }, ...baseMenuItems.slice(6)]
-            : baseMenuItems
-        ).map((item) => (
+        {(() => {
+          let menuItems = [...baseMenuItems];
+          
+          // Ajouter Scanner billets pour staff
+          if (user && user.is_staff) {
+            menuItems.splice(6, 0, { text: 'Scanner billets', icon: <QrCodeScannerIcon />, path: '/scan' });
+          }
+          
+          // Ajouter Super Admin Dashboard pour super admins
+          if (user && (
+            user.is_staff || 
+            user.is_superuser || 
+            (user.profile && user.profile.role === 'super_admin')
+          )) {
+            menuItems.splice(6, 0, { text: '🎛️ Super Admin', icon: <SuperAdminIcon />, path: '/super-admin' });
+          }
+          
+          return menuItems;
+        })().map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
               selected={location.pathname === item.path}
@@ -73,20 +98,42 @@ const Sidebar = () => {
   );
 
   return (
-    <Drawer
-      variant="temporary"
-      open={sidebarOpen}
-      onClose={() => dispatch(setSidebarOpen(false))}
-      ModalProps={{
-        keepMounted: true, // Better open performance on mobile.
-      }}
-      sx={{
-        display: { xs: 'block', sm: 'none' },
-        '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-      }}
-    >
-      {drawer}
-    </Drawer>
+    <>
+      {/* Sidebar mobile (temporaire) */}
+      <Drawer
+        variant="temporary"
+        open={sidebarOpen}
+        onClose={() => dispatch(setSidebarOpen(false))}
+        ModalProps={{
+          keepMounted: true,
+        }}
+        sx={{
+          display: { xs: 'block', sm: 'none' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: drawerWidth,
+            backgroundImage: (theme) => theme.palette.gradients?.sidebar,
+          },
+        }}
+      >
+        {drawer}
+      </Drawer>
+
+      {/* Sidebar desktop (permanente) */}
+      <Drawer
+        variant="permanent"
+        sx={{
+          display: { xs: 'none', sm: 'block' },
+          '& .MuiDrawer-paper': {
+            boxSizing: 'border-box',
+            width: drawerWidth,
+            backgroundImage: (theme) => theme.palette.gradients?.sidebar,
+          },
+        }}
+      >
+        {drawer}
+      </Drawer>
+    </>
   );
 };
 
