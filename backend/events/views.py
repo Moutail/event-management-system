@@ -3222,7 +3222,7 @@ def super_admin_event_detail(request, event_id):
             'registrations_stats': registrations_stats,
             'refund_requests': refunds_data,
             'event_history': history_data,
-            'image_url': event.image.url if event.image else None,
+            'image_url': event.poster.url if event.poster else None,
             'virtual_link': event.virtual_link,
             'access_type': event.access_type
         }

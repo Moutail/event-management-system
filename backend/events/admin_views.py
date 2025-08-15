@@ -50,6 +50,19 @@ class SuperAdminViewSet(viewsets.ViewSet):
                 status='processed'
             ).aggregate(total=Sum('refund_amount')).get('total') or 0
             
+            # Statistiques de modération
+            from .models import EventHistory
+            moderation_actions = EventHistory.objects.count()
+            recent_moderations = EventHistory.objects.filter(
+                created_at__gte=thirty_days_ago
+            ).count()
+            
+            # Répartition des actions de modération
+            moderation_breakdown = {}
+            for action in ['approve', 'reject', 'suspend', 'publish']:
+                count = EventHistory.objects.filter(action=action).count()
+                moderation_breakdown[action] = count
+            
             # Statistiques sur 30 derniers jours
             thirty_days_ago = timezone.now() - timedelta(days=30)
             new_users_30d = User.objects.filter(date_joined__gte=thirty_days_ago).count()
@@ -86,6 +99,11 @@ class SuperAdminViewSet(viewsets.ViewSet):
                     'total_refunds': total_refunds,
                     'total_refund_amount': float(total_refund_amount),
                     'active_users': total_users,  # Pour l'instant, tous les utilisateurs
+                },
+                'moderation_stats': {
+                    'total_actions': moderation_actions,
+                    'recent_actions': recent_moderations,
+                    'breakdown': moderation_breakdown
                 },
                 'recent_activity': {
                     'new_users_30d': new_users_30d,
@@ -289,13 +307,18 @@ class SuperAdminViewSet(viewsets.ViewSet):
             EventHistory.objects.create(
                 event=event,
                 action=action,
-                details=message,
+                field_name='status',
+                old_value=event.status,
+                new_value=event.status,
                 user=request.user
             )
             
             return Response({
                 'message': message,
-                'event_status': event.status
+                'event_status': event.status,
+                'event_id': event.id,
+                'action_performed': action,
+                'timestamp': timezone.now()
             })
             
         except Exception as e:
@@ -303,7 +326,131 @@ class SuperAdminViewSet(viewsets.ViewSet):
                 {'error': f'Erreur lors de la modération: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    @action(detail=False, methods=['post'])
+    def bulk_moderate_events(self, request):
+        """Modérer plusieurs événements en lot"""
+        try:
+            event_ids = request.data.get('event_ids', [])
+            action = request.data.get('action')  # 'approve', 'reject', 'suspend'
+            reason = request.data.get('reason', '')
+            
+            if not event_ids or not action:
+                return Response(
+                    {'error': 'event_ids et action sont requis'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if action not in ['approve', 'reject', 'suspend']:
+                return Response(
+                    {'error': 'Action non valide'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            results = []
+            for event_id in event_ids:
+                try:
+                    event = Event.objects.get(id=event_id)
+                    
+                    # Actions de modération
+                    if action == 'approve':
+                        event.status = 'published'
+                        message = f"Événement approuvé par {request.user.username}"
+                    elif action == 'reject':
+                        event.status = 'cancelled'
+                        message = f"Événement rejeté par {request.user.username}: {reason}"
+                    elif action == 'suspend':
+                        event.status = 'draft'
+                        message = f"Événement suspendu par {request.user.username}: {reason}"
+                    
+                    event.save()
+                    
+                    # Enregistrer l'action dans l'historique
+                    EventHistory.objects.create(
+                        event=event,
+                        action=action,
+                        field_name='status',
+                        old_value=event.status,
+                        new_value=event.status,
+                        user=request.user
+                    )
+                    
+                    results.append({
+                        'event_id': event.id,
+                        'title': event.title,
+                        'status': 'success',
+                        'message': message
+                    })
+                    
+                except Event.DoesNotExist:
+                    results.append({
+                        'event_id': event_id,
+                        'status': 'error',
+                        'message': 'Événement non trouvé'
+                    })
+                except Exception as e:
+                    results.append({
+                        'event_id': event_id,
+                        'status': 'error',
+                        'message': f'Erreur: {str(e)}'
+                    })
+            
+            success_count = len([r for r in results if r['status'] == 'success'])
+            error_count = len([r for r in results if r['status'] == 'error'])
+            
+            return Response({
+                'message': f'Modération en lot terminée: {success_count} succès, {error_count} erreurs',
+                'results': results,
+                'summary': {
+                    'total': len(event_ids),
+                    'success': success_count,
+                    'errors': error_count
+                }
+            })
+            
+        except Exception as e:
+            return Response(
+                {'error': f'Erreur lors de la modération en lot: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
+    @action(detail=True, methods=['get'])
+    def event_history(self, request, pk=None):
+        """Récupérer l'historique de modération d'un événement"""
+        try:
+            event = Event.objects.get(id=pk)
+            history = event.history.all().order_by('-created_at')
+            
+            history_data = []
+            for h in history:
+                history_data.append({
+                    'id': h.id,
+                    'action': h.action,
+                    'field_name': h.field_name,
+                    'old_value': h.old_value,
+                    'new_value': h.new_value,
+                    'user': {
+                        'id': h.user.id,
+                        'username': h.user.username,
+                        'first_name': h.user.first_name,
+                        'last_name': h.user.last_name,
+                    } if h.user else None,
+                    'created_at': h.created_at,
+                })
+            
+            return Response(history_data)
+            
+        except Event.DoesNotExist:
+            return Response(
+                {'error': 'Événement non trouvé'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': f'Erreur lors de la récupération de l\'historique: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     @action(detail=False, methods=['post'])
     def manage_user(self, request):
         """Gérer un utilisateur (suspendre/activer/changer rôle)"""

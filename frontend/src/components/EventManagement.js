@@ -30,42 +30,27 @@ import {
   Grid,
   Card,
   CardContent,
-  CardHeader,
-  Tabs,
-  Tab,
-  Badge,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails
+  CardHeader
 } from '@mui/material';
 import {
   Search as SearchIcon,
   FilterList as FilterIcon,
   Visibility as ViewIcon,
-  CheckCircle as CheckIcon,
-  Cancel as CancelIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
   Block as BlockIcon,
-  Publish as PublishIcon,
+  CheckCircle as CheckIcon,
   Refresh as RefreshIcon,
   Event as EventIcon,
   Person as PersonIcon,
   LocationOn as LocationIcon,
   AttachMoney as MoneyIcon,
   CalendarToday as CalendarIcon,
-  People as PeopleIcon,
-  ExpandMore as ExpandMoreIcon,
-  Warning as WarningIcon,
-  Info as InfoIcon,
-  History as HistoryIcon
+  People as PeopleIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 
-const EventModeration = () => {
+const EventManagement = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -79,9 +64,6 @@ const EventModeration = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [pageSize] = useState(20);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [activeTab, setActiveTab] = useState(0);
-  const [moderationHistory, setModerationHistory] = useState([]);
-  const [actionData, setActionData] = useState({ reason: '' });
 
   useEffect(() => {
     loadEvents();
@@ -109,48 +91,42 @@ const EventModeration = () => {
     }
   };
 
-  const loadModerationHistory = async (eventId) => {
-    try {
-      const response = await api.get(`/admin/events/${eventId}/history/`);
-      setModerationHistory(response.data || []);
-    } catch (error) {
-      console.error('Erreur lors du chargement de l\'historique:', error);
-    }
-  };
-
   const handleEventAction = async (event, action) => {
     setSelectedEvent(event);
     setActionType(action);
-    setActionData({ reason: '' });
     setActionDialog(true);
   };
 
   const confirmAction = async () => {
     try {
-      const payload = {
-        event_id: selectedEvent.id,
-        action: actionType,
-        ...(actionType === 'suspend' || actionType === 'reject' ? { reason: actionData.reason } : {})
-      };
-
-      await api.post('/admin/moderate_event/', payload);
+      let response;
       
-      showSnackbar('Action de modération effectuée avec succès', 'success');
+      if (actionType === 'delete') {
+        // Pour la suppression, utiliser l'endpoint dédié
+        response = await api.delete(`/admin/events/${selectedEvent.id}/delete/`);
+      } else {
+        // Pour les autres actions (approve, suspend, reject), utiliser moderate_event
+        const payload = {
+          event_id: selectedEvent.id,
+          action: actionType
+        };
+        response = await api.post('/admin/moderate_event/', payload);
+      }
+      
+      showSnackbar('Action effectuée avec succès', 'success');
       setActionDialog(false);
       setSelectedEvent(null);
       setActionType('');
-      setActionData({ reason: '' });
       loadEvents(); // Recharger les données
     } catch (error) {
       console.error('Erreur lors de l\'action:', error);
-      showSnackbar('Erreur lors de l\'action de modération', 'error');
+      showSnackbar('Erreur lors de l\'action', 'error');
     }
   };
 
-  const handleViewEventDetails = async (event) => {
+  const handleViewEventDetails = (event) => {
     setSelectedEvent(event);
     setEventDetailDialog(true);
-    await loadModerationHistory(event.id);
   };
 
   const getStatusColor = (status) => {
@@ -175,36 +151,6 @@ const EventModeration = () => {
     }
   };
 
-  const getActionIcon = (action) => {
-    switch (action) {
-      case 'approve': return <CheckIcon />;
-      case 'reject': return <CancelIcon />;
-      case 'suspend': return <BlockIcon />;
-      case 'publish': return <PublishIcon />;
-      default: return <InfoIcon />;
-    }
-  };
-
-  const getActionColor = (action) => {
-    switch (action) {
-      case 'approve': return 'success';
-      case 'reject': return 'error';
-      case 'suspend': return 'warning';
-      case 'publish': return 'info';
-      default: return 'default';
-    }
-  };
-
-  const getActionLabel = (action) => {
-    switch (action) {
-      case 'approve': return 'Approuver';
-      case 'reject': return 'Rejeter';
-      case 'suspend': return 'Suspendre';
-      case 'publish': return 'Publier';
-      default: return action;
-    }
-  };
-
   const showSnackbar = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
   };
@@ -215,22 +161,6 @@ const EventModeration = () => {
 
   const handlePageChange = (event, value) => {
     setCurrentPage(value);
-  };
-
-  const handleTabChange = (event, newValue) => {
-    setActiveTab(newValue);
-  };
-
-  const getPendingEventsCount = () => {
-    return events.filter(event => event.status === 'draft').length;
-  };
-
-  const getPublishedEventsCount = () => {
-    return events.filter(event => event.status === 'published').length;
-  };
-
-  const getCancelledEventsCount = () => {
-    return events.filter(event => event.status === 'cancelled').length;
   };
 
   if (loading) {
@@ -245,7 +175,7 @@ const EventModeration = () => {
     <Box>
       <Box mb={3} display="flex" justifyContent="space-between" alignItems="center">
         <Typography variant="h5" component="h2">
-          Modération des Événements
+          Gestion des Événements
         </Typography>
         <Button
           startIcon={<RefreshIcon />}
@@ -254,116 +184,6 @@ const EventModeration = () => {
         >
           Actualiser
         </Button>
-      </Box>
-
-      {/* Statistiques de modération */}
-      <Box mb={3}>
-        <Grid container spacing={2}>
-          <Grid item xs={12} md={3}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center">
-                  <Box sx={{ color: 'warning.main', mr: 2 }}>
-                    <WarningIcon fontSize="large" />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" component="div">
-                      {getPendingEventsCount()}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      En attente de modération
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center">
-                  <Box sx={{ color: 'success.main', mr: 2 }}>
-                    <CheckIcon fontSize="large" />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" component="div">
-                      {getPublishedEventsCount()}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Événements publiés
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center">
-                  <Box sx={{ color: 'error.main', mr: 2 }}>
-                    <CancelIcon fontSize="large" />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" component="div">
-                      {getCancelledEventsCount()}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Événements rejetés
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={3}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center">
-                  <Box sx={{ color: 'info.main', mr: 2 }}>
-                    <EventIcon fontSize="large" />
-                  </Box>
-                  <Box>
-                    <Typography variant="h4" component="div">
-                      {events.length}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      Total des événements
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Box>
-
-      {/* Onglets de modération */}
-      <Box mb={3}>
-        <Tabs value={activeTab} onChange={handleTabChange} variant="fullWidth">
-          <Tab 
-            label={
-              <Badge badgeContent={getPendingEventsCount()} color="warning">
-                En Attente
-              </Badge>
-            } 
-          />
-          <Tab 
-            label={
-              <Badge badgeContent={getPublishedEventsCount()} color="success">
-                Publiés
-              </Badge>
-            } 
-          />
-          <Tab 
-            label={
-              <Badge badgeContent={getCancelledEventsCount()} color="error">
-                Rejetés
-              </Badge>
-            } 
-          />
-          <Tab label="Tous" />
-        </Tabs>
       </Box>
 
       {/* Filtres et recherche */}
@@ -389,8 +209,8 @@ const EventModeration = () => {
             label="Statut"
           >
             <MenuItem value="">Tous les statuts</MenuItem>
-            <MenuItem value="draft">Brouillon</MenuItem>
             <MenuItem value="published">Publié</MenuItem>
+            <MenuItem value="draft">Brouillon</MenuItem>
             <MenuItem value="cancelled">Annulé</MenuItem>
             <MenuItem value="completed">Terminé</MenuItem>
             <MenuItem value="postponed">Reporté</MenuItem>
@@ -422,18 +242,11 @@ const EventModeration = () => {
               <TableCell>Lieu</TableCell>
               <TableCell>Participants</TableCell>
               <TableCell>Prix</TableCell>
-              <TableCell>Actions de Modération</TableCell>
+              <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {events
-              .filter(event => {
-                if (activeTab === 0) return event.status === 'draft';
-                if (activeTab === 1) return event.status === 'published';
-                if (activeTab === 2) return event.status === 'cancelled';
-                return true; // Tous les événements
-              })
-              .map((event) => (
+            {events.map((event) => (
               <TableRow key={event.id}>
                 <TableCell>
                   <Box>
@@ -505,7 +318,7 @@ const EventModeration = () => {
                 
                 <TableCell>
                   <Box display="flex" gap={1}>
-                    <Tooltip title="Voir les détails">
+                    <Tooltip title="Voir l'événement">
                       <IconButton 
                         size="small" 
                         color="primary"
@@ -516,26 +329,15 @@ const EventModeration = () => {
                     </Tooltip>
                     
                     {event.status === 'draft' && (
-                      <>
-                        <Tooltip title="Approuver">
-                          <IconButton 
-                            size="small" 
-                            color="success"
-                            onClick={() => handleEventAction(event, 'approve')}
-                          >
-                            <CheckIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Rejeter">
-                          <IconButton 
-                            size="small" 
-                            color="error"
-                            onClick={() => handleEventAction(event, 'reject')}
-                          >
-                            <CancelIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </>
+                      <Tooltip title="Approuver">
+                        <IconButton 
+                          size="small" 
+                          color="success"
+                          onClick={() => handleEventAction(event, 'approve')}
+                        >
+                          <CheckIcon />
+                        </IconButton>
+                      </Tooltip>
                     )}
                     
                     {event.status === 'published' && (
@@ -549,6 +351,16 @@ const EventModeration = () => {
                         </IconButton>
                       </Tooltip>
                     )}
+                    
+                    <Tooltip title="Supprimer">
+                      <IconButton 
+                        size="small" 
+                        color="error"
+                        onClick={() => handleEventAction(event, 'delete')}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
                   </Box>
                 </TableCell>
               </TableRow>
@@ -571,50 +383,21 @@ const EventModeration = () => {
         </Box>
       )}
 
-      {/* Dialog pour les actions de modération */}
+      {/* Dialog pour les actions */}
       <Dialog open={actionDialog} onClose={() => setActionDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            {getActionIcon(actionType)}
-            <Typography variant="h6">
-              {getActionLabel(actionType)} l'événement
-            </Typography>
-          </Box>
+          {actionType === 'approve' && 'Approuver l\'événement'}
+          {actionType === 'suspend' && 'Suspendre l\'événement'}
+          {actionType === 'delete' && 'Supprimer l\'événement'}
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mt: 2 }}>
             Événement: <strong>{selectedEvent?.title}</strong>
           </Typography>
           
-          {(actionType === 'suspend' || actionType === 'reject') && (
-            <TextField
-              fullWidth
-              multiline
-              rows={3}
-              label="Raison"
-              value={actionData.reason || ''}
-              onChange={(e) => setActionData({ ...actionData, reason: e.target.value })}
-              placeholder="Raison de la suspension/rejet..."
-              sx={{ mt: 2 }}
-              required
-            />
-          )}
-
-          {actionType === 'reject' && (
+          {actionType === 'delete' && (
             <Alert severity="warning" sx={{ mt: 2 }}>
-              Cette action rejettera définitivement l'événement. L'organisateur sera notifié.
-            </Alert>
-          )}
-
-          {actionType === 'suspend' && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              L'événement sera mis en brouillon et pourra être republié ultérieurement.
-            </Alert>
-          )}
-
-          {actionType === 'approve' && (
-            <Alert severity="success" sx={{ mt: 2 }}>
-              L'événement sera publié et visible par tous les utilisateurs.
+              Cette action est irréversible. L'événement sera définitivement supprimé.
             </Alert>
           )}
         </DialogContent>
@@ -622,16 +405,15 @@ const EventModeration = () => {
           <Button onClick={() => setActionDialog(false)}>Annuler</Button>
           <Button 
             onClick={confirmAction} 
-            color={getActionColor(actionType)}
+            color={actionType === 'delete' ? 'error' : 'primary'}
             variant="contained"
-            disabled={actionType === 'suspend' || actionType === 'reject' ? !actionData.reason : false}
           >
-            {getActionLabel(actionType)}
+            Confirmer
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Dialog de détails de l'événement avec historique de modération */}
+      {/* Dialog de détails de l'événement */}
       <Dialog open={eventDetailDialog} onClose={() => setEventDetailDialog(false)} maxWidth="lg" fullWidth>
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -752,51 +534,32 @@ const EventModeration = () => {
                 </Card>
               </Grid>
 
-              {/* Historique de modération */}
+              {/* Informations supplémentaires */}
               <Grid item xs={12}>
                 <Card>
                   <CardHeader
-                    title="Historique de Modération"
-                    avatar={<HistoryIcon />}
+                    title="Informations supplémentaires"
+                    avatar={<EventIcon />}
                   />
                   <CardContent>
-                    {moderationHistory.length > 0 ? (
-                      <List>
-                        {moderationHistory.map((history, index) => (
-                          <ListItem key={index} divider>
-                            <ListItemAvatar>
-                              <Avatar sx={{ bgcolor: getActionColor(history.action) }}>
-                                {getActionIcon(history.action)}
-                              </Avatar>
-                            </ListItemAvatar>
-                            <ListItemText
-                              primary={`${getActionLabel(history.action)} par ${history.user?.username || 'Admin'}`}
-                              secondary={
-                                <Box>
-                                  <Typography variant="body2" color="textSecondary">
-                                    {new Date(history.created_at).toLocaleString('fr-FR')}
-                                  </Typography>
-                                  {history.field_name && (
-                                    <Typography variant="body2" color="textSecondary">
-                                      Champ modifié: {history.field_name}
-                                    </Typography>
-                                  )}
-                                  {history.old_value && history.new_value && (
-                                    <Typography variant="body2" color="textSecondary">
-                                      {history.old_value} → {history.new_value}
-                                    </Typography>
-                                  )}
-                                </Box>
-                              }
-                            />
-                          </ListItem>
-                        ))}
-                      </List>
-                    ) : (
-                      <Typography variant="body2" color="textSecondary" align="center">
-                        Aucun historique de modération disponible
-                      </Typography>
-                    )}
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="body2" color="textSecondary" gutterBottom>
+                          <strong>Créé le :</strong> {new Date(selectedEvent.created_at).toLocaleDateString('fr-FR')}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary" gutterBottom>
+                          <strong>Dernière modification :</strong> {new Date(selectedEvent.updated_at).toLocaleDateString('fr-FR')}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <Typography variant="body2" color="textSecondary" gutterBottom>
+                          <strong>Événement en vedette :</strong> {selectedEvent.is_featured ? 'Oui' : 'Non'}
+                        </Typography>
+                        <Typography variant="body2" color="textSecondary">
+                          <strong>Lien virtuel :</strong> {selectedEvent.virtual_link || 'Non spécifié'}
+                        </Typography>
+                      </Grid>
+                    </Grid>
                   </CardContent>
                 </Card>
               </Grid>
@@ -823,4 +586,4 @@ const EventModeration = () => {
   );
 };
 
-export default EventModeration;
+export default EventManagement;

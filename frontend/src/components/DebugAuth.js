@@ -1,107 +1,148 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Button, Typography, Paper, TextField } from '@mui/material';
-import { useDispatch, useSelector } from 'react-redux';
-import { login, getCurrentUser } from '../store/slices/authSlice';
+import {
+  Box, Card, CardContent, CardHeader, Typography, Button, TextField, Alert
+} from '@mui/material';
 import api from '../services/api';
 
 const DebugAuth = () => {
-  const dispatch = useDispatch();
-  const { user, isAuthenticated, loading } = useSelector((state) => state.auth);
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
-  const [testResult, setTestResult] = useState('');
+  const [authStatus, setAuthStatus] = useState({});
+  const [testResult, setTestResult] = useState(null);
+  const [eventId, setEventId] = useState('60');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    try {
-      setTestResult('Tentative de connexion...');
-      const result = await dispatch(login(credentials));
-      if (login.fulfilled.match(result)) {
-        setTestResult('✅ Connexion réussie !');
-      } else {
-        setTestResult(`❌ Erreur: ${result.payload}`);
-      }
-    } catch (error) {
-      setTestResult(`❌ Erreur: ${error.message}`);
-    }
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  const checkAuthStatus = () => {
+    const accessToken = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
+    
+    setAuthStatus({
+      accessToken: accessToken ? `Présent (${accessToken.substring(0, 20)}...)` : 'Absent',
+      refreshToken: refreshToken ? `Présent (${refreshToken.substring(0, 20)}...)` : 'Absent',
+      hasTokens: !!(accessToken && refreshToken)
+    });
   };
 
-  const testAPI = async () => {
+  const testEndpoint = async () => {
+    setLoading(true);
+    setTestResult(null);
+    
     try {
-      setTestResult('Test de l\'API...');
-      const response = await api.get('/auth/user/');
-      setTestResult(`✅ API OK: ${JSON.stringify(response.data, null, 2)}`);
+      console.log('🔍 Test de l\'endpoint avec eventId:', eventId);
+      console.log('🔍 Token présent:', !!localStorage.getItem('access_token'));
+      
+      const response = await api.get(`/admin/events/${eventId}/detail/`);
+      
+      console.log('✅ Succès:', response.status, response.data);
+      setTestResult({
+        success: true,
+        status: response.status,
+        data: response.data,
+        message: 'Endpoint accessible avec succès!'
+      });
     } catch (error) {
-      setTestResult(`❌ API Error: ${error.response?.status} - ${error.response?.data?.detail || error.message}`);
+      console.error('❌ Erreur:', error);
+      setTestResult({
+        success: false,
+        status: error.response?.status,
+        error: error.message,
+        responseData: error.response?.data,
+        message: `Erreur ${error.response?.status}: ${error.message}`
+      });
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const testToken = () => {
-    const token = localStorage.getItem('access_token');
-    const refresh = localStorage.getItem('refresh_token');
-    setTestResult(`Token: ${token ? '✅ Présent' : '❌ Absent'}\nRefresh: ${refresh ? '✅ Présent' : '❌ Absent'}`);
   };
 
   const clearTokens = () => {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
-    setTestResult('Tokens supprimés');
+    checkAuthStatus();
+    setTestResult(null);
   };
 
   return (
-    <Box sx={{ p: 3, maxWidth: 600, mx: 'auto' }}>
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" gutterBottom>
-          🔧 Debug Authentification
-        </Typography>
-        
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h6">État actuel:</Typography>
-          <Typography>Authentifié: {isAuthenticated ? '✅ Oui' : '❌ Non'}</Typography>
-          <Typography>Utilisateur: {user ? user.username : 'Aucun'}</Typography>
-          <Typography>Chargement: {loading ? '🔄 Oui' : '⏸️ Non'}</Typography>
-        </Box>
+    <Box sx={{ p: 2 }}>
+      <Card>
+        <CardHeader 
+          title="🔍 Debug - État d'Authentification" 
+          subheader="Vérification de l'authentification et test des endpoints"
+        />
+        <CardContent>
+          <Typography variant="h6" gutterBottom>État des Tokens</Typography>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2">Access Token: {authStatus.accessToken}</Typography>
+            <Typography variant="body2">Refresh Token: {authStatus.refreshToken}</Typography>
+            <Typography variant="body2" color={authStatus.hasTokens ? 'success.main' : 'error.main'}>
+              Statut: {authStatus.hasTokens ? 'Authentifié' : 'Non authentifié'}
+            </Typography>
+          </Box>
 
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h6">Connexion:</Typography>
-          <TextField
-            fullWidth
-            label="Nom d'utilisateur"
-            value={credentials.username}
-            onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            fullWidth
-            label="Mot de passe"
-            type="password"
-            value={credentials.password}
-            onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-            sx={{ mb: 2 }}
-          />
-          <Button variant="contained" onClick={handleLogin} sx={{ mr: 1 }}>
-            Se connecter
-          </Button>
-        </Box>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="h6" gutterBottom>Test de l'Endpoint</Typography>
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+              <TextField
+                label="Event ID"
+                value={eventId}
+                onChange={(e) => setEventId(e.target.value)}
+                size="small"
+                sx={{ width: 120 }}
+              />
+              <Button 
+                variant="contained" 
+                onClick={testEndpoint}
+                disabled={loading}
+              >
+                {loading ? 'Test...' : 'Tester Endpoint'}
+              </Button>
+              <Button variant="outlined" onClick={clearTokens}>
+                Effacer Tokens
+              </Button>
+            </Box>
+          </Box>
 
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h6">Tests:</Typography>
-          <Button variant="outlined" onClick={testAPI} sx={{ mr: 1, mb: 1 }}>
-            Test API
-          </Button>
-          <Button variant="outlined" onClick={testToken} sx={{ mr: 1, mb: 1 }}>
-            Vérifier Tokens
-          </Button>
-          <Button variant="outlined" onClick={clearTokens} sx={{ mr: 1, mb: 1 }}>
-            Nettoyer Tokens
-          </Button>
-        </Box>
+          {testResult && (
+            <Box sx={{ mt: 2 }}>
+              <Alert severity={testResult.success ? 'success' : 'error'}>
+                {testResult.message}
+              </Alert>
+              
+              {testResult.success ? (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2">Statut: {testResult.status}</Typography>
+                  <Typography variant="body2">Données reçues: {JSON.stringify(testResult.data, null, 2)}</Typography>
+                </Box>
+              ) : (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2">Statut: {testResult.status}</Typography>
+                  <Typography variant="body2">Erreur: {testResult.error}</Typography>
+                  {testResult.responseData && (
+                    <Typography variant="body2">Réponse: {JSON.stringify(testResult.responseData, null, 2)}</Typography>
+                  )}
+                </Box>
+              )}
+            </Box>
+          )}
 
-        <Box>
-          <Typography variant="h6">Résultat:</Typography>
-          <Paper sx={{ p: 2, bgcolor: 'grey.100', fontFamily: 'monospace', fontSize: '0.875rem' }}>
-            {testResult || 'Aucun test effectué'}
-          </Paper>
-        </Box>
-      </Paper>
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="h6" gutterBottom>Instructions</Typography>
+            <Typography variant="body2" paragraph>
+              1. Vérifiez que vous êtes connecté en tant que Super Admin
+            </Typography>
+            <Typography variant="body2" paragraph>
+              2. Cliquez sur "Tester Endpoint" pour vérifier l'API
+            </Typography>
+            <Typography variant="body2" paragraph>
+              3. Si vous obtenez une erreur 401, reconnectez-vous
+            </Typography>
+            <Typography variant="body2" paragraph>
+              4. Si vous obtenez une erreur 500, il y a un problème backend
+            </Typography>
+          </Box>
+        </CardContent>
+      </Card>
     </Box>
   );
 };
