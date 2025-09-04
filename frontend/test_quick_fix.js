@@ -62,3 +62,4 @@ console.log('   4. Tester l\'inscription avec choix de session');
 
 
 
+

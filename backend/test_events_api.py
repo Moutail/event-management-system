@@ -1,92 +1,185 @@
 #!/usr/bin/env python
 """
-Test de l'API des événements
+🧪 TEST DE L'API DES ÉVÉNEMENTS POUR LES RAPPELS
 """
 
-import requests
-import json
+import os
+import sys
+import django
+from datetime import datetime, timedelta
+
+# Configuration Django
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'event_management.settings')
+django.setup()
+
+from django.utils import timezone
+from events.models import Event, User
+from events.views import EventViewSet
+from rest_framework.test import APIRequestFactory
+from django.contrib.auth.models import AnonymousUser
 
 def test_events_api():
-    """Test de l'API des événements"""
-    print("🧪 Test de l'API des événements")
-    print("=" * 40)
+    """Tester l'API des événements pour les rappels"""
+    print("🧪 TEST DE L'API DES ÉVÉNEMENTS POUR LES RAPPELS")
+    print("=" * 60)
     
-    # URL de base
-    base_url = "http://localhost:8001/api"
-    
-    # Test 1: Récupération des événements
-    print("\n🔍 Test 1: Récupération des événements")
     try:
-        url = f"{base_url}/events/"
-        print(f"   URL: {url}")
+        # Récupérer ou créer un utilisateur test
+        user, created = User.objects.get_or_create(
+            username='test_events_api',
+            defaults={
+                'email': 'test@eventsapi.com',
+                'first_name': 'Test',
+                'last_name': 'EventsAPI'
+            }
+        )
         
-        response = requests.get(url)
-        print(f"   Status: {response.status_code}")
+        # Créer quelques événements de test
+        event1, created = Event.objects.get_or_create(
+            title='Test Event 1 pour Rappels',
+            defaults={
+                'description': 'Événement test 1 pour les rappels',
+                'start_date': timezone.now() + timedelta(days=1),
+                'end_date': timezone.now() + timedelta(days=1, hours=2),
+                'location': 'Test Location 1',
+                'max_capacity': 100,
+                'price': 0,
+                'organizer': user,
+                'status': 'published'
+            }
+        )
         
-        if response.status_code == 200:
-            data = response.json()
-            print("   ✅ Succès!")
-            print(f"   Type de données reçues: {type(data)}")
-            print(f"   Contenu brut: {data[:100] if isinstance(data, list) else str(data)[:100]}")
-            
-            # Gérer le cas où l'API retourne une liste directement
-            if isinstance(data, list):
-                events = data
-                print(f"   Total d'événements: {len(events)}")
-            else:
-                events = data.get('results', [])
-                print(f"   Total d'événements: {data.get('count', 'N/A')}")
-                print(f"   Événements dans cette page: {len(events)}")
-            
-            if events:
-                print("\n   📋 Premiers événements:")
-                for i, event in enumerate(events[:3]):
-                    print(f"      {i+1}. {event.get('title', 'Sans titre')}")
-                    print(f"         ID: {event.get('id')}")
-                    print(f"         Lieu: {event.get('location', 'Non spécifié')}")
-                    print(f"         Catégorie: {event.get('category', {}).get('name', 'Aucune')}")
-                    print(f"         Statut: {event.get('status', 'Inconnu')}")
-                    print()
-            else:
-                print("   ⚠️ Aucun événement trouvé")
-                
-        else:
-            print(f"   ❌ Erreur: {response.text}")
-            
+        event2, created = Event.objects.get_or_create(
+            title='Test Event 2 pour Rappels',
+            defaults={
+                'description': 'Événement test 2 pour les rappels',
+                'start_date': timezone.now() + timedelta(days=2),
+                'end_date': timezone.now() + timedelta(days=2, hours=3),
+                'location': 'Test Location 2',
+                'max_capacity': 50,
+                'price': 10,
+                'organizer': user,
+                'status': 'published'
+            }
+        )
+        
+        print(f"✅ Utilisateur: {user.username}")
+        print(f"✅ Événements créés: {Event.objects.filter(organizer=user).count()}")
+        print()
+        
+        # Test 1: Lister les événements via l'API
+        print("🧪 TEST 1: Lister les événements via l'API")
+        print("-" * 50)
+        
+        factory = APIRequestFactory()
+        request = factory.get('/api/events/')
+        request.user = user
+        
+        # Créer l'instance de la vue
+        viewset = EventViewSet()
+        viewset.request = request
+        viewset.format_kwarg = None
+        viewset.action = 'list'
+        
+        try:
+            response = viewset.list(request)
+            print(f"✅ Réponse de l'API: {response.status_code}")
+            if hasattr(response, 'data'):
+                print(f"✅ Nombre d'événements retournés: {len(response.data)}")
+                for event in response.data:
+                    print(f"   - ID: {event.get('id')}, Titre: {event.get('title')}, Statut: {event.get('status')}")
+        except Exception as e:
+            print(f"❌ Erreur lors de l'appel à l'API: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        print()
+        
+        # Test 2: Vérifier les événements disponibles pour les rappels
+        print("🧪 TEST 2: Événements disponibles pour les rappels")
+        print("-" * 50)
+        
+        # Événements publiés
+        published_events = Event.objects.filter(status='published')
+        print(f"📋 Événements publiés: {published_events.count()}")
+        for event in published_events:
+            print(f"   - ID: {event.id}, Titre: {event.title}, Organisateur: {event.organizer.username}")
+        
+        # Événements de l'utilisateur
+        user_events = Event.objects.filter(organizer=user)
+        print(f"📋 Événements de l'utilisateur: {user_events.count()}")
+        for event in user_events:
+            print(f"   - ID: {event.id}, Titre: {event.title}, Statut: {event.status}")
+        
+        print()
+        
+        # Test 3: Vérifier la structure des données pour le frontend
+        print("🧪 TEST 3: Structure des données pour le frontend")
+        print("-" * 50)
+        
+        # Simuler ce que le frontend devrait recevoir
+        events_for_reminders = Event.objects.filter(
+            Q(status='published') | Q(organizer=user)
+        ).distinct()
+        
+        print(f"📋 Événements disponibles pour les rappels: {events_for_reminders.count()}")
+        
+        events_data = []
+        for event in events_for_reminders:
+            event_data = {
+                'id': event.id,
+                'title': event.title,
+                'start_date': event.start_date,
+                'end_date': event.end_date,
+                'location': event.location,
+                'status': event.status,
+                'organizer': event.organizer.username
+            }
+            events_data.append(event_data)
+            print(f"   - {event_data}")
+        
+        print()
+        
+        # Test 4: Vérifier les permissions
+        print("🧪 TEST 4: Vérification des permissions")
+        print("-" * 50)
+        
+        # Test avec utilisateur non authentifié
+        anonymous_request = factory.get('/api/events/')
+        anonymous_request.user = AnonymousUser()
+        
+        viewset_anon = EventViewSet()
+        viewset_anon.request = anonymous_request
+        viewset_anon.format_kwarg = None
+        viewset_anon.action = 'list'
+        
+        try:
+            response_anon = viewset_anon.list(anonymous_request)
+            print(f"✅ Réponse pour utilisateur anonyme: {response_anon.status_code}")
+            if hasattr(response_anon, 'data'):
+                print(f"✅ Événements visibles pour anonyme: {len(response_anon.data)}")
+        except Exception as e:
+            print(f"❌ Erreur pour utilisateur anonyme: {e}")
+        
+        print()
+        
+        # Résumé
+        print("📊 RÉSUMÉ DES TESTS:")
+        print("-" * 30)
+        print(f"✅ Événements créés: {Event.objects.filter(organizer=user).count()}")
+        print(f"✅ Événements publiés: {published_events.count()}")
+        print(f"✅ Événements disponibles pour rappels: {events_for_reminders.count()}")
+        
+        # Nettoyage
+        print("\n🧹 Nettoyage des tests...")
+        event1.delete()
+        event2.delete()
+        print("✅ Tests nettoyés")
+        
     except Exception as e:
-        print(f"   ❌ Exception: {str(e)}")
-    
-    # Test 2: Recherche d'événements
-    print("\n🔍 Test 2: Recherche d'événements")
-    try:
-        search_terms = ['WINNER', 'TEST', 'Conférence']
-        
-        for term in search_terms:
-            url = f"{base_url}/events/?search={term}"
-            print(f"   Recherche '{term}': {url}")
-            
-            response = requests.get(url)
-            print(f"   Status: {response.status_code}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                results = data.get('results', [])
-                print(f"   ✅ Résultats: {len(results)} événements trouvés")
-                
-                if results:
-                    for event in results:
-                        print(f"      - {event.get('title')} (ID: {event.get('id')})")
-                else:
-                    print(f"      ⚠️ Aucun résultat pour '{term}'")
-            else:
-                print(f"   ❌ Erreur: {response.text}")
-            
-            print()
-            
-    except Exception as e:
-        print(f"   ❌ Exception: {str(e)}")
-    
-    print("\n✅ Test terminé!")
+        print(f"❌ Erreur lors du test: {e}")
+        import traceback
+        traceback.print_exc()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_events_api()

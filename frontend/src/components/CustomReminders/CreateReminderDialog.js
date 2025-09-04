@@ -12,6 +12,8 @@ import {
   MenuItem,
   FormControlLabel,
   Checkbox,
+  Radio,
+  RadioGroup,
   Grid,
   Box,
   Typography,
@@ -51,7 +53,8 @@ const CreateReminderDialog = ({
     send_sms: true,
     scheduled_at: null,
     custom_recipient_ids: [],
-    event: eventId || null
+    event: eventId || null,
+    send_mode: 'manual' // 🎯 NOUVEAU: Mode d'envoi par défaut
   });
   
   const [loading, setLoading] = useState(false);
@@ -131,7 +134,8 @@ const CreateReminderDialog = ({
           send_sms: reminder.send_sms !== false,
           scheduled_at: reminder.scheduled_at ? new Date(reminder.scheduled_at) : null,
           custom_recipient_ids: reminder.custom_recipients?.map(r => r.id) || [],
-          event: reminder.event || eventId || null
+          event: reminder.event || eventId || null,
+          send_mode: reminder.scheduled_at ? 'automatic' : 'manual' // 🎯 Détecter le mode selon l'heure
         });
       } else {
         // Mode création
@@ -144,7 +148,8 @@ const CreateReminderDialog = ({
           send_sms: true,
           scheduled_at: null,
           custom_recipient_ids: [],
-          event: eventId || null
+          event: eventId || null,
+          send_mode: 'manual' // 🎯 Mode manuel par défaut
         });
       }
       setError(null);
@@ -171,6 +176,17 @@ const CreateReminderDialog = ({
         ...prev,
         custom_recipient_ids: []
       }));
+    }
+    
+    // 🎯 NOUVEAU: Gestion du mode d'envoi
+    if (field === 'send_mode') {
+      if (value === 'manual') {
+        // Mode manuel: réinitialiser l'heure programmée
+        setFormData(prev => ({
+          ...prev,
+          scheduled_at: null
+        }));
+      }
     }
   };
 
@@ -201,7 +217,17 @@ const CreateReminderDialog = ({
       return false;
     }
     
-    if (formData.scheduled_at && formData.scheduled_at <= new Date()) {
+    // 🎯 NOUVEAU: Validation pour le mode automatique
+    if (formData.send_mode === 'automatic') {
+      if (!formData.scheduled_at) {
+        setError('Pour l\'envoi automatique, une date et heure sont requises');
+        return false;
+      }
+      if (formData.scheduled_at <= new Date()) {
+        setError('La date d\'envoi programmée doit être dans le futur');
+        return false;
+      }
+    } else if (formData.scheduled_at && formData.scheduled_at <= new Date()) {
       setError('La date d\'envoi programmée doit être dans le futur');
       return false;
     }
@@ -227,7 +253,8 @@ const CreateReminderDialog = ({
         target_audience: formData.target_audience,
         send_email: formData.send_email,
         send_sms: formData.send_sms,
-        scheduled_at: formData.scheduled_at ? formData.scheduled_at.toISOString() : null
+        scheduled_at: formData.scheduled_at ? formData.scheduled_at.toISOString() : null,
+        send_mode: formData.send_mode // 🎯 NOUVEAU: Ajouter le mode d'envoi
       };
 
       // Ajouter les destinataires personnalisés si nécessaire
@@ -337,6 +364,45 @@ const CreateReminderDialog = ({
                   )}
                 </Select>
               </FormControl>
+            </Grid>
+
+            {/* 🎯 NOUVEAU: Mode d'envoi */}
+            <Grid item xs={12}>
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  Mode d'envoi
+                </Typography>
+                <RadioGroup
+                  value={formData.send_mode}
+                  onChange={(e) => handleChange('send_mode', e.target.value)}
+                  row
+                >
+                  <FormControlLabel
+                    value="manual"
+                    control={<Radio color="primary" />}
+                    label={
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2">📝 Envoi manuel</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          (Brouillon - envoi à la demande)
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                  <FormControlLabel
+                    value="automatic"
+                    control={<Radio color="primary" />}
+                    label={
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography variant="body2">⏰ Envoi automatique</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          (Programmé - envoi à l'heure choisie)
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </RadioGroup>
+              </Box>
             </Grid>
 
             {/* Type de rappel */}
@@ -467,25 +533,49 @@ const CreateReminderDialog = ({
               </Box>
             </Grid>
 
-            {/* Programmation */}
-            <Grid item xs={12}>
-              <Box>
-                <Typography variant="subtitle2" gutterBottom>
-                  <ScheduleIcon fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
-                  Programmation (optionnel)
-                </Typography>
-                <DateTimePicker
-                  label="Date et heure d'envoi"
-                  value={formData.scheduled_at}
-                  onChange={(newValue) => handleChange('scheduled_at', newValue)}
-                  minDateTime={new Date()}
-                  renderInput={(params) => <TextField {...params} fullWidth />}
-                />
-                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                  Si aucune date n'est sélectionnée, le rappel sera créé en brouillon
-                </Typography>
-              </Box>
-            </Grid>
+            {/* Programmation - Conditionnelle selon le mode */}
+            {formData.send_mode === 'automatic' && (
+              <Grid item xs={12}>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    <ScheduleIcon fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Programmation (requis pour l'envoi automatique)
+                  </Typography>
+                  <DateTimePicker
+                    label="Date et heure d'envoi"
+                    value={formData.scheduled_at}
+                    onChange={(newValue) => handleChange('scheduled_at', newValue)}
+                    minDateTime={new Date()}
+                    renderInput={(params) => <TextField {...params} fullWidth required />}
+                  />
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    Le rappel sera envoyé automatiquement à cette heure
+                  </Typography>
+                </Box>
+              </Grid>
+            )}
+
+            {/* Programmation optionnelle pour le mode manuel */}
+            {formData.send_mode === 'manual' && (
+              <Grid item xs={12}>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    <ScheduleIcon fontSize="small" sx={{ mr: 1, verticalAlign: 'middle' }} />
+                    Programmation (optionnel)
+                  </Typography>
+                  <DateTimePicker
+                    label="Date et heure d'envoi (optionnel)"
+                    value={formData.scheduled_at}
+                    onChange={(newValue) => handleChange('scheduled_at', newValue)}
+                    minDateTime={new Date()}
+                    renderInput={(params) => <TextField {...params} fullWidth />}
+                  />
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    Si une heure est définie, le rappel sera créé en brouillon avec cette heure programmée
+                  </Typography>
+                </Box>
+              </Grid>
+            )}
 
             {/* Résumé */}
             <Grid item xs={12}>
@@ -508,7 +598,10 @@ const CreateReminderDialog = ({
                   • <strong>Canaux:</strong> {formData.send_email ? 'Email ' : ''}{formData.send_sms ? 'SMS' : ''}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  • <strong>Envoi:</strong> {formData.scheduled_at ? 'Programmé' : 'Immédiat'}
+                  • <strong>Mode:</strong> {formData.send_mode === 'manual' ? 'Envoi manuel (brouillon)' : 'Envoi automatique (programmé)'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  • <strong>Envoi:</strong> {formData.scheduled_at ? `Programmé le ${formData.scheduled_at.toLocaleString('fr-FR')}` : 'Immédiat'}
                 </Typography>
               </Box>
             </Grid>

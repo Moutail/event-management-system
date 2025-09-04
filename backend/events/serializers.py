@@ -1036,6 +1036,18 @@ class CustomReminderSerializer(serializers.ModelSerializer):
     recipients_count = serializers.IntegerField(read_only=True)
     custom_recipients = CustomReminderRecipientSerializer(source='recipient_entries', many=True, read_only=True)
     
+    # 🎯 NOUVEAU: Champ pour choisir entre manuel et automatique
+    send_mode = serializers.ChoiceField(
+        choices=[
+            ('manual', 'Envoi manuel'),
+            ('automatic', 'Envoi automatique')
+        ],
+        write_only=True,
+        required=False,  # Rendre optionnel pour compatibilité
+        default='manual',  # Valeur par défaut
+        help_text="Choisir entre envoi manuel (brouillon) ou automatique (programmé)"
+    )
+    
     class Meta:
         model = CustomReminder
         fields = [
@@ -1044,7 +1056,7 @@ class CustomReminderSerializer(serializers.ModelSerializer):
             'scheduled_at', 'sent_at', 'status', 'emails_sent', 'sms_sent',
             'emails_failed', 'sms_failed', 'created_at', 'updated_at',
             'event', 'event_title', 'created_by', 'organizer_name',
-            'recipients_count', 'custom_recipients'
+            'recipients_count', 'custom_recipients', 'send_mode'
         ]
         read_only_fields = [
             'id', 'created_by', 'sent_at', 'emails_sent', 'sms_sent',
@@ -1081,18 +1093,33 @@ class CustomReminderSerializer(serializers.ModelSerializer):
         validated_data['total_recipients'] = 0
         print(f"🔍 DEBUG: total_recipients ajouté: {validated_data['total_recipients']}")
         
-        # 🎯 NOUVEAU: Vérifier si une heure est programmée
+        # 🎯 NOUVEAU: Gestion du mode d'envoi
+        send_mode = validated_data.pop('send_mode', 'manual')  # Par défaut: manuel
         scheduled_at = validated_data.get('scheduled_at')
-        if scheduled_at:
+        
+        print(f"🔍 DEBUG: Mode d'envoi choisi: {send_mode}")
+        print(f"🔍 DEBUG: Heure programmée: {scheduled_at}")
+        
+        if send_mode == 'automatic':
+            # Mode automatique: nécessite une heure programmée
+            if not scheduled_at:
+                raise serializers.ValidationError(
+                    "Pour l'envoi automatique, une heure de programmation est requise."
+                )
             from django.utils import timezone
-            if scheduled_at > timezone.now():
-                # Si l'heure est dans le futur, passer automatiquement en statut 'scheduled'
-                validated_data['status'] = 'scheduled'
-                print(f"🔍 DEBUG: Heure programmée détectée: {scheduled_at}")
-                print(f"🔍 DEBUG: Statut automatiquement défini à 'scheduled'")
-            else:
-                print(f"🔍 DEBUG: Heure programmée dans le passé: {scheduled_at}")
-                print(f"🔍 DEBUG: Statut reste 'draft'")
+            if scheduled_at <= timezone.now():
+                raise serializers.ValidationError(
+                    "Pour l'envoi automatique, l'heure doit être dans le futur."
+                )
+            validated_data['status'] = 'scheduled'
+            print(f"🔍 DEBUG: Mode automatique - Statut défini à 'scheduled'")
+        else:
+            # Mode manuel: statut brouillon par défaut
+            validated_data['status'] = 'draft'
+            print(f"🔍 DEBUG: Mode manuel - Statut défini à 'draft'")
+            # Si une heure est fournie en mode manuel, on la garde mais on reste en brouillon
+            if scheduled_at:
+                print(f"🔍 DEBUG: Heure programmée fournie en mode manuel: {scheduled_at}")
         
         print(f"🔍 DEBUG: validated_data final: {validated_data}")
         

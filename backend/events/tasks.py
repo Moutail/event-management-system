@@ -27,17 +27,19 @@ def send_reminder_task(self, reminder_id):
             return {'status': 'error', 'message': 'Rappel non trouvé'}
         
         # Vérifier si le rappel peut être envoyé
-        if reminder.status != 'scheduled':
-            print(f"🔍 DEBUG: ❌ Rappel pas en statut 'scheduled': {reminder.status}")
-            return {'status': 'error', 'message': f'Rappel pas en statut scheduled: {reminder.status}'}
+        if reminder.status not in ['scheduled', 'draft']:
+            print(f"🔍 DEBUG: ❌ Rappel pas en statut 'scheduled' ou 'draft': {reminder.status}")
+            return {'status': 'error', 'message': f'Rappel pas en statut scheduled ou draft: {reminder.status}'}
         
-        # Vérifier si l'heure est arrivée
+        # Vérifier si l'heure est arrivée (seulement pour les rappels programmés)
         now = timezone.now()
-        if reminder.scheduled_at > now:
-            print(f"🔍 DEBUG: ❌ Heure pas encore arrivée: {reminder.scheduled_at} > {now}")
-            return {'status': 'error', 'message': 'Heure pas encore arrivée'}
-        
-        print(f"🔍 DEBUG: ✅ Heure arrivée, envoi du rappel...")
+        if reminder.status == 'scheduled':
+            if reminder.scheduled_at and reminder.scheduled_at > now:
+                print(f"🔍 DEBUG: ❌ Heure pas encore arrivée: {reminder.scheduled_at} > {now}")
+                return {'status': 'error', 'message': 'Heure pas encore arrivée'}
+            print(f"🔍 DEBUG: ✅ Heure arrivée, envoi du rappel programmé...")
+        else:
+            print(f"🔍 DEBUG: ✅ Envoi manuel du rappel en brouillon...")
         
         # Récupérer les destinataires
         recipients = reminder.get_recipients()
