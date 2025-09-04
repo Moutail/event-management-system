@@ -1,0 +1,43 @@
+# 🎯 Dépendances pour les Analytics Prédictifs et Machine Learning
+
+# Core ML libraries
+scikit-learn==1.3.0
+numpy==1.24.3
+pandas==2.0.3
+
+# Model persistence
+joblib==1.3.2
+
+# Data processing
+scipy==1.11.1
+
+# Optional: Advanced ML (décommenter si nécessaire)
+# xgboost==1.7.6
+# lightgbm==4.0.0
+# tensorflow==2.13.0
+
+# Optional: Visualization (décommenter si nécessaire)
+# matplotlib==3.7.2
+# seaborn==0.12.2
+# plotly==5.15.0
+
+# Optional: Statistical analysis (décommenter si nécessaire)
+# statsmodels==0.14.0
+# scipy==1.11.1
+
+# Note: Ces versions sont compatibles avec Python 3.8+
+# Pour installer: pip install -r requirements_ml.txt
+
+
+
+
+
+
+
+
+
+
+
+
+
+

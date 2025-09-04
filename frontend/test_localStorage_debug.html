@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 DEBUG localStorage - Système de Sessions</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .log { background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; }
+        button { background: #007bff; color: white; border: none; padding: 10px 15px; margin: 5px; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .warning { color: #ffc107; }
+        .info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 DEBUG localStorage - Système de Sessions</h1>
+        
+        <div class="section">
+            <h3>🔍 État actuel du localStorage</h3>
+            <div id="localStorageStatus" class="log"></div>
+            <button onclick="refreshStatus()">🔄 Actualiser</button>
+        </div>
+
+        <div class="section">
+            <h3>🧪 Tests de Sessions</h3>
+            <button onclick="createTestSession('userA', 'participant')">👤 Créer Session User A (Participant)</button>
+            <button onclick="createTestSession('userB', 'organizer')">👤 Créer Session User B (Organizer)</button>
+            <button onclick="createTestSession('userC', 'super_admin')">👤 Créer Session User C (Super Admin)</button>
+            <button onclick="switchToSession('userA')">🔄 Aller à Session User A</button>
+            <button onclick="switchToSession('userB')">🔄 Aller à Session User B</button>
+            <button onclick="switchToSession('userC')">🔄 Aller à Session User C</button>
+        </div>
+
+        <div class="section">
+            <h3>🗑️ Nettoyage</h3>
+            <button onclick="clearAllSessions()">🧹 Nettoyer Toutes les Sessions</button>
+            <button onclick="clearCurrentSession()">🗑️ Nettoyer Session Actuelle</button>
+        </div>
+
+        <div class="section">
+            <h3>📊 Logs d'activité</h3>
+            <div id="activityLog" class="log"></div>
+            <button onclick="clearLog()">🧹 Nettoyer Log</button>
+        </div>
+    </div>
+
+    <script>
+        // Fonction pour ajouter des logs
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('activityLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = type;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            log.appendChild(logEntry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Fonction pour actualiser l'affichage du localStorage
+        function refreshStatus() {
+            addLog('🔄 Actualisation du statut localStorage', 'info');
+            const statusDiv = document.getElementById('localStorageStatus');
+            
+            let html = '<strong>localStorage.length:</strong> ' + localStorage.length + '\n\n';
+            
+            // Afficher toutes les clés
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                
+                if (key.startsWith('auth_session_') || key === 'current_session_id') {
+                    html += `<strong class="success">${key}:</strong>\n`;
+                    try {
+                        if (key === 'current_session_id') {
+                            html += `  ${value}\n`;
+                        } else {
+                            const parsed = JSON.parse(value);
+                            html += `  Session ID: ${parsed.sessionId}\n`;
+                            html += `  User: ${parsed.user?.username || 'N/A'}\n`;
+                            html += `  Role: ${parsed.user?.role || 'N/A'}\n`;
+                            html += `  Timestamp: ${new Date(parsed.timestamp).toLocaleString()}\n`;
+                        }
+                    } catch (e) {
+                        html += `  <span class="error">Erreur parsing: ${e.message}</span>\n`;
+                    }
+                    html += '\n';
+                } else {
+                    html += `<strong class="warning">${key}:</strong> ${value}\n\n`;
+                }
+            }
+            
+            statusDiv.innerHTML = html;
+        }
+
+        // Fonction pour créer une session de test
+        function createTestSession(username, role) {
+            addLog(`🔐 Création session pour ${username} (${role})`, 'success');
+            
+            const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const userSession = {
+                sessionId,
+                access: `token_${username}_${Date.now()}`,
+                refresh: `refresh_${username}_${Date.now()}`,
+                user: {
+                    id: Math.floor(Math.random() * 1000),
+                    username: username,
+                    role: role,
+                    profile: { role: role }
+                },
+                timestamp: Date.now()
+            };
+
+            // Sauvegarder la session
+            localStorage.setItem(`auth_session_${sessionId}`, JSON.stringify(userSession));
+            addLog(`✅ Session créée: ${sessionId}`, 'success');
+            
+            // Mettre à jour l'affichage
+            refreshStatus();
+        }
+
+        // Fonction pour changer de session
+        function switchToSession(username) {
+            addLog(`🔄 Changement vers session ${username}`, 'info');
+            
+            // Trouver la session correspondante
+            let targetSessionId = null;
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('auth_session_')) {
+                    try {
+                        const sessionData = JSON.parse(localStorage.getItem(key));
+                        if (sessionData.user?.username === username) {
+                            targetSessionId = sessionData.sessionId;
+                            break;
+                        }
+                    } catch (e) {
+                        addLog(`❌ Erreur parsing session ${key}: ${e.message}`, 'error');
+                    }
+                }
+            }
+            
+            if (targetSessionId) {
+                localStorage.setItem('current_session_id', targetSessionId);
+                addLog(`✅ Changement vers session: ${targetSessionId}`, 'success');
+            } else {
+                addLog(`❌ Session pour ${username} non trouvée`, 'error');
+            }
+            
+            refreshStatus();
+        }
+
+        // Fonction pour nettoyer toutes les sessions
+        function clearAllSessions() {
+            addLog('🧹 Nettoyage de toutes les sessions', 'warning');
+            
+            const sessionKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith('auth_session_') || key === 'current_session_id') {
+                    sessionKeys.push(key);
+                }
+            }
+            
+            sessionKeys.forEach(key => {
+                localStorage.removeItem(key);
+                addLog(`🗑️ Supprimé: ${key}`, 'info');
+            });
+            
+            addLog(`✅ ${sessionKeys.length} sessions supprimées`, 'success');
+            refreshStatus();
+        }
+
+        // Fonction pour nettoyer la session actuelle
+        function clearCurrentSession() {
+            addLog('🗑️ Nettoyage de la session actuelle', 'warning');
+            
+            const currentSessionId = localStorage.getItem('current_session_id');
+            if (currentSessionId) {
+                localStorage.removeItem(`auth_session_${currentSessionId}`);
+                localStorage.removeItem('current_session_id');
+                addLog(`✅ Session actuelle supprimée: ${currentSessionId}`, 'success');
+            } else {
+                addLog('ℹ️ Aucune session actuelle à supprimer', 'info');
+            }
+            
+            refreshStatus();
+        }
+
+        // Fonction pour nettoyer les logs
+        function clearLog() {
+            document.getElementById('activityLog').innerHTML = '';
+            addLog('🧹 Logs nettoyés', 'info');
+        }
+
+        // Initialisation
+        window.onload = function() {
+            addLog('🚀 Page de debug chargée', 'success');
+            refreshStatus();
+        };
+
+        // Actualiser automatiquement toutes les 3 secondes
+        setInterval(refreshStatus, 3000);
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+

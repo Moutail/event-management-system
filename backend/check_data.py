@@ -1,55 +1,54 @@
 #!/usr/bin/env python
 """
-Script simple pour vérifier les données en base
+Script pour vérifier les données existantes dans la base
 """
+
 import os
+import sys
 import django
 
 # Configuration Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'event_management.settings')
 django.setup()
 
-from django.contrib.auth.models import User
-from events.models import Event, EventRegistration, UserProfile, Category, Tag
+from events.models import Event, EventRegistration, User
 
 def check_data():
-    """Vérifier les données en base"""
-    print("🔍 Vérification des données en base...")
+    """Vérifier les données existantes"""
+    print("🔍 Vérification des données existantes...")
     
-    # 1. Vérifier les utilisateurs
-    print(f"\n👥 Utilisateurs: {User.objects.count()}")
-    for user in User.objects.all()[:5]:  # Afficher les 5 premiers
-        try:
-            profile = user.profile
-            print(f"   - {user.username} ({user.email}) - Rôle: {profile.role} - Actif: {user.is_active}")
-        except:
-            print(f"   - {user.username} ({user.email}) - Pas de profil - Actif: {user.is_active}")
+    # Utilisateurs
+    users = User.objects.all()
+    print(f"\n👥 Utilisateurs ({users.count()}):")
+    for user in users[:5]:  # Afficher les 5 premiers
+        print(f"  - {user.username} ({user.email}) - {user.first_name} {user.last_name}")
     
-    # 2. Vérifier les événements
-    print(f"\n🎪 Événements: {Event.objects.count()}")
-    for event in Event.objects.all()[:5]:  # Afficher les 5 premiers
-        print(f"   - {event.title} - Organisateur: {event.organizer.username} - Statut: {event.status}")
+    # Événements
+    events = Event.objects.all()
+    print(f"\n🎪 Événements ({events.count()}):")
+    for event in events[:5]:
+        print(f"  - {event.title} - {event.status} - Organisateur: {event.organizer}")
     
-    # 3. Vérifier les inscriptions
-    print(f"\n📝 Inscriptions: {EventRegistration.objects.count()}")
+    # Inscriptions
+    registrations = EventRegistration.objects.all()
+    print(f"\n📝 Inscriptions ({registrations.count()}):")
+    for reg in registrations[:5]:
+        print(f"  - ID: {reg.id} - User: {reg.user.username} - Event: {reg.event.title} - Status: {reg.status}")
     
-    # 4. Vérifier les catégories
-    print(f"\n📂 Catégories: {Category.objects.count()}")
-    for cat in Category.objects.all():
-        print(f"   - {cat.name} ({cat.description})")
+    # Vérifier les inscriptions avec utilisateurs
+    print(f"\n🔍 Inscriptions avec utilisateurs valides:")
+    valid_regs = []
+    for reg in registrations:
+        if reg.user and reg.event:
+            valid_regs.append(reg)
+            print(f"  ✅ {reg.id}: {reg.user.username} -> {reg.event.title} ({reg.status})")
     
-    # 5. Vérifier les tags
-    print(f"\n🏷️  Tags: {Tag.objects.count()}")
-    for tag in Tag.objects.all():
-        print(f"   - {tag.name} ({tag.color})")
-    
-    # 6. Vérifier le Super Admin
-    try:
-        super_admin = User.objects.get(username='window7')
-        profile = UserProfile.objects.get(user=super_admin)
-        print(f"\n👑 Super Admin: {super_admin.username} - Rôle: {profile.role}")
-    except:
-        print(f"\n❌ Super Admin 'window7' non trouvé ou pas de profil")
+    if valid_regs:
+        print(f"\n🎯 Inscription de test recommandée: {valid_regs[0].id}")
+        return valid_regs[0]
+    else:
+        print("\n❌ Aucune inscription valide trouvée")
+        return None
 
 if __name__ == '__main__':
     check_data()

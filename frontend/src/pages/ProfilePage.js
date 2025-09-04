@@ -54,7 +54,8 @@ const ProfilePage = () => {
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
     email: user?.email || '',
-    phone: user?.phone || '',
+    phone: user?.profile?.phone || '',
+    country: user?.profile?.country || 'FR',
     address: user?.address || '',
     bio: user?.bio || '',
   });
@@ -77,6 +78,27 @@ const ProfilePage = () => {
     } catch (_) {}
   }, []);
 
+  // 🎯 NOUVEAU: Synchroniser le formulaire avec les données utilisateur
+  useEffect(() => {
+    console.log('🔍 [PROFILE_SYNC] Synchronisation du formulaire avec user:', user);
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        first_name: user.first_name || prev.first_name,
+        last_name: user.last_name || prev.last_name,
+        email: user.email || prev.email,
+        phone: user.profile?.phone || prev.phone,
+        country: user.profile?.country || prev.country,
+        address: user.address || prev.address,
+        bio: user.bio || prev.bio,
+      }));
+      console.log('🔍 [PROFILE_SYNC] Formulaire synchronisé:', {
+        phone: user.profile?.phone,
+        country: user.profile?.country
+      });
+    }
+  }, [user]);
+
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -93,12 +115,47 @@ const ProfilePage = () => {
   };
 
   const handleSave = async () => {
+    console.log('🔍 [PROFILE_SAVE] Début de la sauvegarde...');
+    console.log('🔍 [PROFILE_SAVE] Données à envoyer:', {
+      first_name: formData.first_name,
+      last_name: formData.last_name,
+      phone: formData.phone,
+      country: formData.country
+    });
+    
     try {
-      // TODO: brancher à un endpoint backend si dispo
-      try { localStorage.setItem('profile_form', JSON.stringify(formData)); } catch(_) {}
-      setIsEditing(false);
+      const response = await api.put('/auth/update_profile/', {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        phone: formData.phone,
+        country: formData.country
+      });
+      
+      console.log('🔍 [PROFILE_SAVE] Réponse reçue:', response);
+      console.log('🔍 [PROFILE_SAVE] Status:', response.status);
+      console.log('🔍 [PROFILE_SAVE] Données reçues:', response.data);
+      
+      if (response.status === 200) {
+        console.log('🔍 [PROFILE_SAVE] ✅ Succès - Mise à jour Redux...');
+        console.log('🔍 [PROFILE_SAVE] User data avant dispatch:', response.data.user);
+        
+        // Mettre à jour l'état utilisateur dans Redux
+        dispatch({ type: 'auth/updateUser', payload: response.data.user });
+        
+        // 🎯 FORCER LA MISE À JOUR DU FORMULAIRE
+        setFormData(prev => ({
+          ...prev,
+          phone: response.data.user.profile?.phone || prev.phone,
+          country: response.data.user.profile?.country || prev.country
+        }));
+        
+        console.log('🔍 [PROFILE_SAVE] ✅ Dispatch effectué');
+        setIsEditing(false);
+        console.log('🔍 [PROFILE_SAVE] ✅ Mode édition désactivé');
+      }
     } catch (error) {
-      console.error('Erreur lors de la mise à jour du profil:', error);
+      console.error('❌ [PROFILE_SAVE] Erreur lors de la mise à jour du profil:', error);
+      console.error('❌ [PROFILE_SAVE] Détails de l\'erreur:', error.response?.data);
     }
   };
 
@@ -107,12 +164,21 @@ const ProfilePage = () => {
       first_name: user?.first_name || '',
       last_name: user?.last_name || '',
       email: user?.email || '',
-      phone: user?.phone || '',
+      phone: user?.profile?.phone || '',
+      country: user?.profile?.country || 'FR',
       address: user?.address || '',
       bio: user?.bio || '',
     });
     setIsEditing(false);
   };
+
+  // 🎯 LOGS DÉTAILLÉS POUR DÉBOGUER
+  console.log('🔍 [PROFILE_RENDER] Rendu du composant ProfilePage');
+  console.log('🔍 [PROFILE_RENDER] État user:', user);
+  console.log('🔍 [PROFILE_RENDER] État formData:', formData);
+  console.log('🔍 [PROFILE_RENDER] État isEditing:', isEditing);
+  console.log('🔍 [PROFILE_RENDER] User profile country:', user?.profile?.country);
+  console.log('🔍 [PROFILE_RENDER] FormData country:', formData.country);
 
   if (loading) {
     return (
@@ -191,6 +257,105 @@ const ProfilePage = () => {
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
+                <FormControl fullWidth disabled={!isEditing}>
+                  <InputLabel>Pays</InputLabel>
+                  <Select
+                    value={formData.country}
+                    onChange={(e) => handleInputChange('country', e.target.value)}
+                    label="Pays"
+                  >
+                    <MenuItem value="FR">🇫🇷 France (+33)</MenuItem>
+                    <MenuItem value="US">🇺🇸 États-Unis (+1)</MenuItem>
+                    <MenuItem value="CA">🇨🇦 Canada (+1)</MenuItem>
+                    <MenuItem value="BE">🇧🇪 Belgique (+32)</MenuItem>
+                    <MenuItem value="CH">🇨🇭 Suisse (+41)</MenuItem>
+                    <MenuItem value="LU">🇱🇺 Luxembourg (+352)</MenuItem>
+                    <MenuItem value="DE">🇩🇪 Allemagne (+49)</MenuItem>
+                    <MenuItem value="IT">🇮🇹 Italie (+39)</MenuItem>
+                    <MenuItem value="ES">🇪🇸 Espagne (+34)</MenuItem>
+                    <MenuItem value="GB">🇬🇧 Royaume-Uni (+44)</MenuItem>
+                    <MenuItem value="NL">🇳🇱 Pays-Bas (+31)</MenuItem>
+                    <MenuItem value="PT">🇵🇹 Portugal (+351)</MenuItem>
+                    <MenuItem value="IE">🇮🇪 Irlande (+353)</MenuItem>
+                    <MenuItem value="AT">🇦🇹 Autriche (+43)</MenuItem>
+                    <MenuItem value="SE">🇸🇪 Suède (+46)</MenuItem>
+                    <MenuItem value="NO">🇳🇴 Norvège (+47)</MenuItem>
+                    <MenuItem value="DK">🇩🇰 Danemark (+45)</MenuItem>
+                    <MenuItem value="FI">🇫🇮 Finlande (+358)</MenuItem>
+                    <MenuItem value="PL">🇵🇱 Pologne (+48)</MenuItem>
+                    <MenuItem value="CZ">🇨🇿 République tchèque (+420)</MenuItem>
+                    <MenuItem value="HU">🇭🇺 Hongrie (+36)</MenuItem>
+                    <MenuItem value="RO">🇷🇴 Roumanie (+40)</MenuItem>
+                    <MenuItem value="BG">🇧🇬 Bulgarie (+359)</MenuItem>
+                    <MenuItem value="HR">🇭🇷 Croatie (+385)</MenuItem>
+                    <MenuItem value="SI">🇸🇮 Slovénie (+386)</MenuItem>
+                    <MenuItem value="SK">🇸🇰 Slovaquie (+421)</MenuItem>
+                    <MenuItem value="LT">🇱🇹 Lituanie (+370)</MenuItem>
+                    <MenuItem value="LV">🇱🇻 Lettonie (+371)</MenuItem>
+                    <MenuItem value="EE">🇪🇪 Estonie (+372)</MenuItem>
+                    <MenuItem value="CY">🇨🇾 Chypre (+357)</MenuItem>
+                    <MenuItem value="MT">🇲🇹 Malte (+356)</MenuItem>
+                    <MenuItem value="GR">🇬🇷 Grèce (+30)</MenuItem>
+                    <MenuItem value="TG">🇹🇬 Togo (+228)</MenuItem>
+                    <MenuItem value="CI">🇨🇮 Côte d'Ivoire (+225)</MenuItem>
+                    <MenuItem value="SN">🇸🇳 Sénégal (+221)</MenuItem>
+                    <MenuItem value="ML">🇲🇱 Mali (+223)</MenuItem>
+                    <MenuItem value="BF">🇧🇫 Burkina Faso (+226)</MenuItem>
+                    <MenuItem value="NE">🇳🇪 Niger (+227)</MenuItem>
+                    <MenuItem value="TD">🇹🇩 Tchad (+235)</MenuItem>
+                    <MenuItem value="CM">🇨🇲 Cameroun (+237)</MenuItem>
+                    <MenuItem value="CF">🇨🇫 République centrafricaine (+236)</MenuItem>
+                    <MenuItem value="CG">🇨🇬 Congo (+242)</MenuItem>
+                    <MenuItem value="CD">🇨🇩 République démocratique du Congo (+243)</MenuItem>
+                    <MenuItem value="GA">🇬🇦 Gabon (+241)</MenuItem>
+                    <MenuItem value="GQ">🇬🇶 Guinée équatoriale (+240)</MenuItem>
+                    <MenuItem value="ST">🇸🇹 Sao Tomé-et-Principe (+239)</MenuItem>
+                    <MenuItem value="AO">🇦🇴 Angola (+244)</MenuItem>
+                    <MenuItem value="NA">🇳🇦 Namibie (+264)</MenuItem>
+                    <MenuItem value="ZA">🇿🇦 Afrique du Sud (+27)</MenuItem>
+                    <MenuItem value="BW">🇧🇼 Botswana (+267)</MenuItem>
+                    <MenuItem value="ZW">🇿🇼 Zimbabwe (+263)</MenuItem>
+                    <MenuItem value="ZM">🇿🇲 Zambie (+260)</MenuItem>
+                    <MenuItem value="MW">🇲🇼 Malawi (+265)</MenuItem>
+                    <MenuItem value="MZ">🇲🇿 Mozambique (+258)</MenuItem>
+                    <MenuItem value="MG">🇲🇬 Madagascar (+261)</MenuItem>
+                    <MenuItem value="MU">🇲🇺 Maurice (+230)</MenuItem>
+                    <MenuItem value="SC">🇸🇨 Seychelles (+248)</MenuItem>
+                    <MenuItem value="KM">🇰🇲 Comores (+269)</MenuItem>
+                    <MenuItem value="DJ">🇩🇯 Djibouti (+253)</MenuItem>
+                    <MenuItem value="SO">🇸🇴 Somalie (+252)</MenuItem>
+                    <MenuItem value="ET">🇪🇹 Éthiopie (+251)</MenuItem>
+                    <MenuItem value="ER">🇪🇷 Érythrée (+291)</MenuItem>
+                    <MenuItem value="SD">🇸🇩 Soudan (+249)</MenuItem>
+                    <MenuItem value="SS">🇸🇸 Soudan du Sud (+211)</MenuItem>
+                    <MenuItem value="EG">🇪🇬 Égypte (+20)</MenuItem>
+                    <MenuItem value="LY">🇱🇾 Libye (+218)</MenuItem>
+                    <MenuItem value="TN">🇹🇳 Tunisie (+216)</MenuItem>
+                    <MenuItem value="DZ">🇩🇿 Algérie (+213)</MenuItem>
+                    <MenuItem value="MA">🇲🇦 Maroc (+212)</MenuItem>
+                    <MenuItem value="EH">🇪🇭 Sahara occidental (+212)</MenuItem>
+                    <MenuItem value="MR">🇲🇷 Mauritanie (+222)</MenuItem>
+                    <MenuItem value="GM">🇬🇲 Gambie (+220)</MenuItem>
+                    <MenuItem value="GN">🇬🇳 Guinée (+224)</MenuItem>
+                    <MenuItem value="GW">🇬🇼 Guinée-Bissau (+245)</MenuItem>
+                    <MenuItem value="SL">🇸🇱 Sierra Leone (+232)</MenuItem>
+                    <MenuItem value="LR">🇱🇷 Liberia (+231)</MenuItem>
+                    <MenuItem value="GH">🇬🇭 Ghana (+233)</MenuItem>
+                    <MenuItem value="BJ">🇧🇯 Bénin (+229)</MenuItem>
+                    <MenuItem value="NG">🇳🇬 Nigeria (+234)</MenuItem>
+                    <MenuItem value="RW">🇷🇼 Rwanda (+250)</MenuItem>
+                    <MenuItem value="KE">🇰🇪 Kenya (+254)</MenuItem>
+                    <MenuItem value="TZ">🇹🇿 Tanzanie (+255)</MenuItem>
+                    <MenuItem value="UG">🇺🇬 Ouganda (+256)</MenuItem>
+                    <MenuItem value="BI">🇧🇮 Burundi (+257)</MenuItem>
+                    <MenuItem value="RE">🇷🇪 La Réunion (+262)</MenuItem>
+                    <MenuItem value="LS">🇱🇸 Lesotho (+266)</MenuItem>
+                    <MenuItem value="SZ">🇸🇿 Eswatini (+268)</MenuItem>
+                    <MenuItem value="YT">🇾🇹 Mayotte (+262)</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
                 <TextField
                   fullWidth
                   label="Téléphone"
@@ -202,7 +367,7 @@ const ProfilePage = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12}>
                 <TextField
                   fullWidth
                   label="Adresse"

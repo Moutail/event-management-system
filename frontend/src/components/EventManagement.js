@@ -46,9 +46,12 @@ import {
   LocationOn as LocationIcon,
   AttachMoney as MoneyIcon,
   CalendarToday as CalendarIcon,
-  People as PeopleIcon
+  People as PeopleIcon,
+  Email as EmailIcon
 } from '@mui/icons-material';
+import { Tabs, Tab } from '@mui/material';
 import api from '../services/api';
+import { CustomRemindersManager } from './CustomReminders';
 
 const EventManagement = () => {
   const [events, setEvents] = useState([]);
@@ -64,6 +67,7 @@ const EventManagement = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [pageSize] = useState(20);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [activeTab, setActiveTab] = useState(0);
 
   useEffect(() => {
     loadEvents();
@@ -423,7 +427,28 @@ const EventManagement = () => {
         </DialogTitle>
         <DialogContent>
           {selectedEvent && (
-            <Grid container spacing={3}>
+            <Box>
+              {/* Onglets */}
+              <Tabs 
+                value={activeTab} 
+                onChange={(e, newValue) => setActiveTab(newValue)}
+                sx={{ mb: 3 }}
+              >
+                <Tab 
+                  icon={<EventIcon />} 
+                  label="Informations" 
+                  iconPosition="start"
+                />
+                <Tab 
+                  icon={<EmailIcon />} 
+                  label="Rappels Personnalisés" 
+                  iconPosition="start"
+                />
+              </Tabs>
+
+              {/* Contenu des onglets */}
+              {activeTab === 0 && (
+                <Grid container spacing={3}>
               {/* Informations principales */}
               <Grid item xs={12}>
                 <Card>
@@ -563,7 +588,17 @@ const EventManagement = () => {
                   </CardContent>
                 </Card>
               </Grid>
-            </Grid>
+                </Grid>
+              )}
+
+              {/* Onglet Rappels Personnalisés */}
+              {activeTab === 1 && (
+                <CustomRemindersManager 
+                  eventId={selectedEvent.id}
+                  eventTitle={selectedEvent.title}
+                />
+              )}
+            </Box>
           )}
         </DialogContent>
       </Dialog>

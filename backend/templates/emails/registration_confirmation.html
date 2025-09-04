@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmation d'inscription</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #28a745; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f8f9fa; }
+        .event-details { background-color: white; padding: 15px; margin: 15px 0; border-left: 4px solid #28a745; }
+        .footer { text-align: center; color: #666; margin-top: 20px; font-size: 12px; }
+        .icon { font-size: 48px; margin-bottom: 10px; }
+        .qr-code { text-align: center; margin: 20px 0; }
+        .qr-code img { max-width: 200px; height: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">✅</div>
+            <h1>Inscription confirmée !</h1>
+        </div>
+        
+        <div class="content">
+            <p>Bonjour <strong>{{ user.first_name|default:user.username }}</strong>,</p>
+            
+            <p>🎉 Félicitations ! Votre inscription à l'événement <strong>"{{ event.title }}"</strong> a été confirmée avec succès.</p>
+            
+            <div class="event-details">
+                <h3>📅 Détails de l'événement :</h3>
+                <ul>
+                    <li><strong>Titre :</strong> {{ event.title }}</li>
+                    <li><strong>Date :</strong> {{ event.start_date|date:"j F Y à H:i" }}</li>
+                    <li><strong>Lieu :</strong> {{ event.location }}</li>
+                    <li><strong>Organisateur :</strong> {{ event.organizer.get_full_name|default:event.organizer.username|default:event.organizer }}</li>
+                    {% if event.price %}
+                    <li><strong>Prix :</strong> {{ event.price }}€</li>
+                    {% endif %}
+                </ul>
+            </div>
+            
+            {% if registration.qr_token %}
+            <div class="qr-code">
+                <h4>🎫 Votre billet QR Code</h4>
+                <p>Présentez ce QR code à l'entrée de l'événement :</p>
+                <img src="data:image/png;base64,{{ qr_code_base64 }}" alt="QR Code billet" />
+                <p><small>Code : {{ registration.qr_token }}</small></p>
+            </div>
+            {% endif %}
+            
+            <div style="background-color: #d1ecf1; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                <h4 style="margin-top: 0; color: #0c5460;">📋 Informations importantes :</h4>
+                <ul>
+                    <li>Arrivez 15 minutes avant le début de l'événement</li>
+                    <li>Présentez votre QR code ou une pièce d'identité</li>
+                    <li>En cas d'annulation, contactez l'organisateur au moins 24h à l'avance</li>
+                </ul>
+            </div>
+            
+            <p>Nous vous souhaitons un excellent événement !</p>
+            
+            <p>Cordialement,<br>
+            <strong>L'équipe Gestion d'Événements</strong></p>
+        </div>
+        
+        <div class="footer">
+            <p>Cet email confirme votre inscription à l'événement. Conservez-le précieusement.</p>
+        </div>
+    </div>
+</body>
+</html>

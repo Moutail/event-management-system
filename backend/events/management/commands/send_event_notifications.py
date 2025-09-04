@@ -36,9 +36,23 @@ class Command(BaseCommand):
             for reg in regs:
                 if NotificationLog.objects.filter(event=event, registration=reg, type='reminder_1d').exists():
                     continue
-                ctx = {'user': reg.user, 'event': event}
-                self._send_email(f"Rappel: {event.title} demain", reg.user.email,
-                                 'emails/reminder_1d.html', 'emails/reminder_1d.txt', ctx)
+                
+                # 🎯 CORRECTION : Gérer les utilisateurs ET les invités
+                if reg.user:
+                    # Utilisateur connecté
+                    recipient_email = reg.user.email
+                    ctx = {'user': reg.user, 'event': event}
+                    template_html = 'emails/reminder_1d.html'
+                    template_txt = 'emails/reminder_1d.txt'
+                else:
+                    # Invité
+                    recipient_email = reg.guest_email
+                    ctx = {'guest_full_name': reg.guest_full_name, 'event': event}
+                    template_html = 'emails/guest_reminder_1d.html'
+                    template_txt = 'emails/guest_reminder_1d.txt'
+                
+                self._send_email(f"Rappel: {event.title} demain", recipient_email,
+                                 template_html, template_txt, ctx)
                 NotificationLog.objects.create(event=event, registration=reg, type='reminder_1d')
 
     def send_reminder_1h(self, now):
@@ -51,9 +65,23 @@ class Command(BaseCommand):
             for reg in regs:
                 if NotificationLog.objects.filter(event=event, registration=reg, type='reminder_1h').exists():
                     continue
-                ctx = {'user': reg.user, 'event': event}
-                self._send_email(f"⏰ DANS 1H: {event.title}", reg.user.email,
-                                 'emails/reminder_1h.html', 'emails/reminder_1h.txt', ctx)
+                
+                # 🎯 CORRECTION : Gérer les utilisateurs ET les invités
+                if reg.user:
+                    # Utilisateur connecté
+                    recipient_email = reg.user.email
+                    ctx = {'user': reg.user, 'event': event}
+                    template_html = 'emails/reminder_1h.html'
+                    template_txt = 'emails/reminder_1h.txt'
+                else:
+                    # Invité
+                    recipient_email = reg.guest_email
+                    ctx = {'guest_full_name': reg.guest_full_name, 'event': event}
+                    template_html = 'emails/guest_reminder_1h.html'
+                    template_txt = 'emails/guest_reminder_1h.txt'
+                
+                self._send_email(f"⏰ DANS 1H: {event.title}", recipient_email,
+                                 template_html, template_txt, ctx)
                 NotificationLog.objects.create(event=event, registration=reg, type='reminder_1h')
 
     def send_reminder_day(self, now):
@@ -66,9 +94,23 @@ class Command(BaseCommand):
             for reg in regs:
                 if NotificationLog.objects.filter(event=event, registration=reg, type='reminder_day').exists():
                     continue
-                ctx = {'user': reg.user, 'event': event}
-                self._send_email(f"C'est aujourd'hui: {event.title}", reg.user.email,
-                                 'emails/reminder_day.html', 'emails/reminder_day.txt', ctx)
+                
+                # 🎯 CORRECTION : Gérer les utilisateurs ET les invités
+                if reg.user:
+                    # Utilisateur connecté
+                    recipient_email = reg.user.email
+                    ctx = {'user': reg.user, 'event': event}
+                    template_html = 'emails/reminder_day.html'
+                    template_txt = 'emails/reminder_day.txt'
+                else:
+                    # Invité
+                    recipient_email = reg.guest_email
+                    ctx = {'guest_full_name': reg.guest_full_name, 'event': event}
+                    template_html = 'emails/guest_reminder_day.html'
+                    template_txt = 'emails/guest_reminder_day.txt'
+                
+                self._send_email(f"C'est aujourd'hui: {event.title}", recipient_email,
+                                 template_html, template_txt, ctx)
                 NotificationLog.objects.create(event=event, registration=reg, type='reminder_day')
 
     def send_thank_you(self, now):
@@ -81,9 +123,23 @@ class Command(BaseCommand):
             for reg in regs:
                 if NotificationLog.objects.filter(event=event, registration=reg, type='thank_you').exists():
                     continue
-                ctx = {'user': reg.user, 'event': event}
-                self._send_email(f"Merci pour votre participation - {event.title}", reg.user.email,
-                                 'emails/thank_you.html', 'emails/thank_you.txt', ctx)
+                
+                # 🎯 CORRECTION : Gérer les utilisateurs ET les invités
+                if reg.user:
+                    # Utilisateur connecté
+                    recipient_email = reg.user.email
+                    ctx = {'user': reg.user, 'event': event}
+                    template_html = 'emails/thank_you.html'
+                    template_txt = 'emails/thank_you.txt'
+                else:
+                    # Invité
+                    recipient_email = reg.guest_email
+                    ctx = {'guest_full_name': reg.guest_full_name, 'event': event}
+                    template_html = 'emails/guest_thank_you.html'
+                    template_txt = 'emails/guest_thank_you.txt'
+                
+                self._send_email(f"Merci pour votre participation - {event.title}", recipient_email,
+                                 template_html, template_txt, ctx)
                 NotificationLog.objects.create(event=event, registration=reg, type='thank_you')
 
     def process_auto_refunds(self):

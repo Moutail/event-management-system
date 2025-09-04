@@ -205,16 +205,16 @@ const SuperAdminRefundManagement = () => {
                                          <TableCell>
                        <Box>
                          <Typography variant="subtitle2">
-                           {refund.registration?.user?.username || 'N/A'}
+                           {refund.user?.username || 'N/A'}
                          </Typography>
                          <Typography variant="body2" color="textSecondary">
-                           ID: {refund.registration?.user?.id || 'N/A'}
+                           ID: {refund.user?.id || 'N/A'}
                          </Typography>
                        </Box>
                      </TableCell>
                      <TableCell>
                        <Typography variant="body2">
-                         {refund.registration?.event?.title || 'N/A'}
+                         {refund.event?.title || 'N/A'}
                        </Typography>
                      </TableCell>
                     <TableCell>
@@ -288,10 +288,10 @@ const SuperAdminRefundManagement = () => {
         <DialogContent>
           <Box mt={2}>
                          <Typography variant="body2" gutterBottom>
-               <strong>Demandeur:</strong> {selectedRefund?.registration?.user?.username}
+               <strong>Demandeur:</strong> {selectedRefund?.user?.username}
              </Typography>
              <Typography variant="body2" gutterBottom>
-               <strong>Événement:</strong> {selectedRefund?.registration?.event?.title}
+               <strong>Événement:</strong> {selectedRefund?.event?.title}
              </Typography>
             <Typography variant="body2" gutterBottom>
                               <strong>Montant:</strong> ${selectedRefund?.amount_paid}

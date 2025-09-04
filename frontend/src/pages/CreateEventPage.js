@@ -25,7 +25,7 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { fr, enUS, es } from 'date-fns/locale';
-import { Add as AddIcon, Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
+import { Add as AddIcon, Save as SaveIcon, Cancel as CancelIcon, VideoCall as VideoCallIcon } from '@mui/icons-material';
 import { createEvent, fetchCategories, fetchTags } from '../store/slices/eventSlice';
 import { eventAPI } from '../services/api';
 import { showSnackbar } from '../store/slices/uiSlice';
@@ -42,6 +42,13 @@ const CreateEventPage = () => {
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [ticketTypes, setTicketTypes] = useState([]);
   const [newTicket, setNewTicket] = useState({ name: '', price: 0, quantity: '', is_vip: false, is_discount_active: false, discount_price: '', discount_percent: '' });
+  const [sessionTypes, setSessionTypes] = useState([]);
+  const [newSession, setNewSession] = useState({ 
+    name: '', 
+    is_active: true, 
+    is_mandatory: true, 
+    display_order: 1 
+  });
 
   const {
     control,
@@ -60,6 +67,7 @@ const CreateEventPage = () => {
       address: '',
       place_type: 'unlimited',
       max_capacity: '',
+      enable_waitlist: true,
       price: 0,
       is_free: true,
       category: '',
@@ -138,6 +146,9 @@ const CreateEventPage = () => {
     console.log('=== DEBUG: Données du formulaire ===');
     console.log('Données:', data);
     console.log('Tags sélectionnés:', selectedTags);
+
+    // Forcer le type d'événement à 'physical' pour ce formulaire
+    data.event_type = 'physical';
     
     const formData = new FormData();
     
@@ -228,6 +239,21 @@ const CreateEventPage = () => {
           try { await eventAPI.createTicketType(event.id, payload); } catch (_) {}
         }
       }
+
+      // Créer les types de sessions si fournis
+      if (Array.isArray(sessionTypes) && sessionTypes.length > 0) {
+        for (const st of sessionTypes) {
+          const payload = {
+            name: st.name,
+            is_active: !!st.is_active,
+            is_mandatory: !!st.is_mandatory,
+            display_order: Number(st.display_order) || 1,
+          };
+          try { await eventAPI.createSessionType(event.id, payload); } catch (error) {
+            console.error('Erreur lors de la création du type de session:', error);
+          }
+        }
+      }
       dispatch(showSnackbar({ message: 'Événement créé avec succès', severity: 'success' }));
       navigate('/events');
     } catch (error) {
@@ -251,9 +277,19 @@ const CreateEventPage = () => {
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Paper elevation={3} sx={{ p: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Créer un nouvel événement
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4" component="h1">
+            Créer un nouvel événement
+          </Typography>
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={() => navigate('/virtual-events/create')}
+            startIcon={<VideoCallIcon />}
+          >
+            Créer un événement virtuel
+          </Button>
+        </Box>
         
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
@@ -308,6 +344,8 @@ const CreateEventPage = () => {
                 )}
               />
             </Grid>
+
+
 
             <Grid item xs={12}>
               <Controller
@@ -411,6 +449,86 @@ const CreateEventPage = () => {
                     <Box key={idx} sx={{ p:1.5, border:'1px solid #eee', borderRadius:1, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                       <Typography>{tt.name} — {tt.is_discount_active && tt.discount_price ? <><span style={{textDecoration:'line-through', marginRight:6}}>${Number(tt.price).toFixed(2)}</span><strong>${Number(tt.discount_price).toFixed(2)}</strong></> : <>${Number(tt.price).toFixed(2)}</>} {tt.is_vip ? ' • VIP' : ''} {tt.quantity? ` • Qté: ${tt.quantity}`:''}</Typography>
                       <Button color="error" onClick={()=> setTicketTypes(ticketTypes.filter((_,i)=>i!==idx))}>Supprimer</Button>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Grid>
+
+            {/* Types de sessions */}
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>
+                Types de sessions
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Créez des sessions que les participants devront choisir lors de l'inscription (optionnel)
+              </Typography>
+              <Grid container spacing={2} alignItems="center" sx={{ mb: 1 }}>
+                <Grid item xs={12} md={4}>
+                  <TextField 
+                    label="Nom de la session" 
+                    fullWidth 
+                    value={newSession.name} 
+                    onChange={(e) => setNewSession({...newSession, name: e.target.value})} 
+                  />
+                </Grid>
+                <Grid item xs={6} md={2}>
+                  <FormControlLabel 
+                    control={<Switch checked={newSession.is_active} onChange={(e) => setNewSession({...newSession, is_active: e.target.checked})} />} 
+                    label="Active" 
+                  />
+                </Grid>
+                <Grid item xs={6} md={2}>
+                  <FormControlLabel 
+                    control={<Switch checked={newSession.is_mandatory} onChange={(e) => setNewSession({...newSession, is_mandatory: e.target.checked})} />} 
+                    label="Obligatoire" 
+                  />
+                </Grid>
+                <Grid item xs={6} md={2}>
+                  <TextField 
+                    label="Ordre" 
+                    type="number" 
+                    fullWidth 
+                    value={newSession.display_order} 
+                    onChange={(e) => setNewSession({...newSession, display_order: parseInt(e.target.value) || 1})} 
+                  />
+                </Grid>
+                <Grid item xs={6} md={2}>
+                  <Button 
+                    variant="outlined" 
+                    onClick={() => {
+                      if (!newSession.name) return;
+                      setSessionTypes([...sessionTypes, { ...newSession, id: Date.now() }]);
+                      setNewSession({ 
+                        name: '', 
+                        is_active: true, 
+                        is_mandatory: true, 
+                        display_order: 1 
+                      });
+                    }}
+                  >
+                    Ajouter
+                  </Button>
+                </Grid>
+              </Grid>
+              {sessionTypes.length > 0 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {sessionTypes.map((st, idx) => (
+                    <Box key={idx} sx={{ p: 1.5, border: '1px solid #eee', borderRadius: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Box>
+                        <Typography variant="subtitle2" fontWeight="bold">{st.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {st.is_mandatory ? 'Obligatoire' : 'Optionnel'} • 
+                          {st.is_active ? 'Active' : 'Inactive'} • 
+                          Ordre: {st.display_order}
+                        </Typography>
+                      </Box>
+                      <Button 
+                        color="error" 
+                        onClick={() => setSessionTypes(sessionTypes.filter((_, i) => i !== idx))}
+                      >
+                        Supprimer
+                      </Button>
                     </Box>
                   ))}
                 </Box>
@@ -549,6 +667,26 @@ const CreateEventPage = () => {
                       helperText={errors.max_capacity?.message}
                     />
                   )}
+                />
+              </Grid>
+            )}
+
+            {placeType === 'limited' && (
+              <Grid item xs={12} md={4}>
+                <FormControlLabel
+                  control={
+                    <Controller
+                      name="enable_waitlist"
+                      control={control}
+                      render={({ field }) => (
+                        <Switch
+                          checked={field.value}
+                          onChange={field.onChange}
+                        />
+                      )}
+                    />
+                  }
+                  label="Activer la liste d'attente"
                 />
               </Grid>
             )}

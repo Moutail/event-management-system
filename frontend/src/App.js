@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import { getCurrentUser, logout, loadSession } from './store/slices/authSlice';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Snackbar, Alert } from '@mui/material';
@@ -11,7 +12,6 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { fr, enUS, es } from 'date-fns/locale';
 
 // Redux actions
-import { getCurrentUser } from './store/slices/authSlice';
 import { hideSnackbar } from './store/slices/uiSlice';
 
 // Thèmes
@@ -20,9 +20,10 @@ import { theme, darkTheme } from './theme';
 // Composants
 import Layout from './components/Layout/Layout';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
+import OrganizerRoute from './components/Auth/OrganizerRoute';
+import AIChatbotWidget from './components/AIChatbotWidget';
 
 // Pages
-import HomePage from './pages/HomePage';
 import EventsPage from './pages/EventsPage';
 import EventDetailPage from './pages/EventDetailPage';
 import CreateEventPage from './pages/CreateEventPage';
@@ -32,101 +33,113 @@ import MyRegistrationsPage from './pages/MyRegistrationsPage';
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import GoogleAuthCallback from './pages/GoogleAuthCallback';
+import FacebookAuthCallback from './pages/FacebookAuthCallback';
 import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 import QRCodeScannerPage from './pages/QRCodeScannerPage';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import DebugAuth from './components/DebugAuth';
+import VirtualEventList from './components/VirtualEventList';
+import VirtualEventDisplay from './components/VirtualEventDisplay';
+import VirtualEventCreation from './components/VirtualEventCreation';
+import VirtualEventRecordingManager from './components/VirtualEventRecordingManager';
+import VirtualEventAnalytics from './components/VirtualEventAnalytics';
+import ContentGenerator from './components/ContentGenerator';
+import PublicHomePage from './pages/PublicHomePage';
+import SessionTester from './components/SessionTester';
+import AboutPage from './pages/AboutPage';
+import ContactPage from './pages/ContactPage';
+import RefundsPage from './pages/RefundsPage';
+import RemindersTab from './components/OrganizerDashboard/RemindersTab';
 
-function App() {
-  const dispatch = useDispatch();
-  const { isAuthenticated, loading: authLoading, user } = useSelector((state) => state.auth);
-  const { darkMode, locale } = useSelector((state) => state.ui);
-  const { snackbar } = useSelector((state) => state.ui);
 
-  // Appliquer la locale globale côté navigateur (dates/nombres)
-  useEffect(() => {
-    try {
-      if (locale) {
-        console.log('App.js - Setting window.__APP_LOCALE__ to:', locale);
-        // Stocker la locale pour l'utiliser dans helpers et composants
-        window.__APP_LOCALE__ = locale;
-        try { localStorage.setItem('locale', locale); } catch(_) {}
-      }
-    } catch (_) {}
-  }, [locale]);
-
-  // Charger les données initiales une seule fois au démarrage
-  useEffect(() => {
-    const initializeApp = async () => {
-      // Si on a un token mais pas d'utilisateur, récupérer l'utilisateur
-      if (isAuthenticated && !user) {
-        try {
-          await dispatch(getCurrentUser());
-        } catch (error) {
-          console.log('Failed to get current user:', error);
-        }
-      }
-      // Les données seront chargées par chaque page selon les besoins
-    };
-
-    initializeApp();
-  }, [dispatch, isAuthenticated, user]);
-
-  // Gérer la fermeture du snackbar
-  const handleSnackbarClose = () => {
-    dispatch(hideSnackbar());
-  };
-
-  // Choisir le thème selon le mode
+// Composant principal de l'application
+const App = () => {
+  const { locale, darkMode } = useSelector((state) => state.ui);
   const currentTheme = darkMode ? darkTheme : theme;
-
-  // Locale pour date-fns (réactive)
   const dateFnsLocale = ({ 'fr-FR': fr, 'en-US': enUS, 'es-ES': es }[locale] || fr);
-
-  if (authLoading) {
-    return (
-      <ThemeProvider theme={currentTheme}>
-        <CssBaseline />
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          height: '100vh' 
-        }}>
-          Chargement...
-        </div>
-      </ThemeProvider>
-    );
-  }
 
   return (
     <ThemeProvider theme={currentTheme}>
       <CssBaseline />
       <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={dateFnsLocale}>
-        <StripeWrapper>
+        <Elements stripe={stripePromise}>
           <AppRoutes />
-        </StripeWrapper>
+        </Elements>
       </LocalizationProvider>
     </ThemeProvider>
   );
-}
+};
 
+// Composant des routes
 function AppRoutes() {
-  const { isAuthenticated, loading: authLoading, user } = useSelector((state) => state.auth);
+  const { isAuthenticated, loading: authLoading, initialized } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
-  const { snackbar } = useSelector((state) => state.ui);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info'
+  });
 
+  console.log('🚀 [APP] AppRoutes rendu avec:', {
+    isAuthenticated,
+    authLoading,
+    initialized
+  });
+
+  // Initialiser l'authentification au démarrage
   useEffect(() => {
-    const init = async () => {
-      if (isAuthenticated && !user) {
+    console.log('🔧 [APP] useEffect d\'initialisation déclenché');
+    console.log('🔍 [APP] État actuel:', { isAuthenticated, initialized });
+    
+    const initializeAuth = async () => {
+      console.log('🔄 [APP] initializeAuth() démarré');
+      
+      // Vérifier s'il y a une session active (pointeur par onglet)
+      const currentSessionId = sessionStorage.getItem('current_session_id');
+      console.log('🔍 [APP] current_session_id trouvé:', currentSessionId);
+      
+      if (currentSessionId) {
+        console.log('✅ [APP] Session trouvée, tentative de restauration');
         try {
+          // Charger la session depuis localStorage
+          console.log('🔄 [APP] Appel dispatch(loadSession())');
+          await dispatch(loadSession(currentSessionId));
+          console.log('✅ [APP] Session restaurée avec succès');
+          
+          // Si l'utilisateur n'est pas encore chargé, le récupérer depuis l'API
+          if (!isAuthenticated) {
+            console.log('🔄 [APP] Appel dispatch(getCurrentUser()) pour récupérer les données utilisateur');
+            await dispatch(getCurrentUser());
+            console.log('✅ [APP] getCurrentUser réussi');
+          }
+        } catch (error) {
+          console.error('❌ [APP] Erreur lors de la restauration de session:', error);
+          console.log('🔄 [APP] Force la déconnexion en cas d\'erreur');
+          dispatch(logout());
+        }
+      } else if (isAuthenticated && !initialized) {
+        console.log('✅ [APP] Utilisateur authentifié mais pas initialisé, appel getCurrentUser');
+        try {
+          console.log('🔄 [APP] Appel dispatch(getCurrentUser())');
           await dispatch(getCurrentUser());
-        } catch (_) {}
+          console.log('✅ [APP] getCurrentUser réussi');
+        } catch (error) {
+          console.error('❌ [APP] Erreur lors de l\'initialisation de l\'auth:', error);
+          console.log('🔄 [APP] Force la déconnexion en cas d\'erreur');
+          dispatch(logout());
+        }
+      } else {
+        console.log('ℹ️ [APP] Pas d\'initialisation nécessaire:', {
+          isAuthenticated,
+          initialized,
+          hasCurrentSession: !!currentSessionId
+        });
       }
     };
-    init();
-  }, [dispatch, isAuthenticated, user]);
+    
+    initializeAuth();
+  }, [dispatch, isAuthenticated, initialized]);
 
   const handleSnackbarClose = () => {
     dispatch(hideSnackbar());
@@ -134,46 +147,183 @@ function AppRoutes() {
 
   if (authLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Chargement...</div>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        Chargement...
+      </div>
     );
   }
 
   return (
-      <>
+    <>
       <Routes>
-        {/* Routes publiques */}
-        <Route path="/login" element={
-          isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
-        } />
-        <Route path="/register" element={
-          isAuthenticated ? <Navigate to="/" replace /> : <RegisterPage />
-        } />
+        {/* Page d'accueil publique - accessible à tous, SANS layout */}
+        <Route path="/" element={<PublicHomePage />} />
         
-        {/* Routes protégées avec layout */}
-        <Route path="/" element={
+        {/* Page d'accueil publique alternative - accessible à tous, SANS layout */}
+        <Route path="/home" element={<PublicHomePage />} />
+        
+        {/* Route de test pour le système de sessions */}
+        <Route path="/test-sessions" element={<SessionTester />} />
+        
+        {/* Pages publiques */}
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+        
+        {/* Routes d'authentification */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        
+        {/* 🔐 Routes d'authentification sociale */}
+        <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
+        <Route path="/auth/facebook/callback" element={<FacebookAuthCallback />} />
+        
+
+        
+        {/* Routes protégées avec layout - DASHBOARD */}
+        <Route path="/dashboard" element={
           <ProtectedRoute>
             <Layout />
           </ProtectedRoute>
         }>
-          <Route index element={<HomePage />} />
+          <Route index element={<DashboardPage />} />
           <Route path="events" element={<EventsPage />} />
           <Route path="events/:id" element={<EventDetailPage />} />
           <Route path="create-event" element={<CreateEventPage />} />
           <Route path="edit-event/:id" element={<EditEventPage />} />
           <Route path="my-events" element={<MyEventsPage />} />
           <Route path="my-registrations" element={<MyRegistrationsPage />} />
-          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="refunds" element={<RefundsPage />} />
+          <Route path="reminders" element={<RemindersTab />} />
           <Route path="super-admin" element={<SuperAdminDashboard />} />
+          {/* Événements virtuels */}
+          <Route path="virtual-events" element={<VirtualEventList />} />
+          <Route path="virtual-events/create" element={<VirtualEventCreation />} />
+          <Route path="virtual-events/:id" element={<VirtualEventDisplay />} />
+          <Route path="virtual-events/:id/recording" element={<VirtualEventRecordingManager />} />
+          <Route path="virtual-events/analytics" element={<VirtualEventAnalytics />} />
           <Route path="scan" element={<QRCodeScannerPage />} />
           <Route path="profile" element={<ProfilePage />} />
+          <Route path="ai-content-generator" element={
+            <OrganizerRoute>
+              <ContentGenerator />
+            </OrganizerRoute>
+          } />
+        </Route>
+
+
+
+        <Route path="/dashboard/organizer" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<DashboardPage />} />
+          <Route path="events" element={<EventsPage />} />
+          <Route path="events/:id" element={<EventDetailPage />} />
+          <Route path="create-event" element={<CreateEventPage />} />
+          <Route path="edit-event/:id" element={<EditEventPage />} />
+          <Route path="my-events" element={<MyEventsPage />} />
+          <Route path="my-registrations" element={<MyRegistrationsPage />} />
+          <Route path="refunds" element={<RefundsPage />} />
+          <Route path="reminders" element={<RemindersTab />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="scan" element={<QRCodeScannerPage />} />
+          <Route path="virtual-events" element={<VirtualEventList />} />
+          <Route path="virtual-events/create" element={<VirtualEventCreation />} />
+          <Route path="virtual-events/:id" element={<VirtualEventDisplay />} />
+          <Route path="virtual-events/:id/recording" element={<VirtualEventRecordingManager />} />
+          <Route path="virtual-events/analytics" element={<VirtualEventAnalytics />} />
+          <Route path="ai-content-generator" element={<ContentGenerator />} />
+        </Route>
+
+        {/* Routes directes pour éviter les erreurs 404 */}
+        <Route path="/events" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<EventsPage />} />
+          <Route path=":id" element={<EventDetailPage />} />
         </Route>
         
-        {/* Route de debug temporaire */}
-        <Route path="/debug" element={<DebugAuth />} />
+        {/* 🎯 NOUVELLES ROUTES PUBLIQUES pour les visiteurs */}
+        <Route path="/public/events" element={<EventsPage />} />
+        <Route path="/public/events/:id" element={<EventDetailPage />} />
+
+        <Route path="/create-event" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<CreateEventPage />} />
+        </Route>
+
+        <Route path="/edit-event/:id" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<EditEventPage />} />
+        </Route>
+
+        <Route path="/my-events" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<MyEventsPage />} />
+        </Route>
+
+        <Route path="/my-registrations" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<MyRegistrationsPage />} />
+        </Route>
+
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<ProfilePage />} />
+        </Route>
+
+        <Route path="/scan" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<QRCodeScannerPage />} />
+        </Route>
+
+        <Route path="/virtual-events" element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<VirtualEventList />} />
+          <Route path="create" element={<VirtualEventCreation />} />
+          <Route path=":id" element={<VirtualEventDisplay />} />
+          <Route path=":id/recording" element={<VirtualEventRecordingManager />} />
+          <Route path="analytics" element={<VirtualEventAnalytics />} />
+        </Route>
+
+        <Route path="/ai-content-generator" element={
+          <ProtectedRoute>
+            <OrganizerRoute>
+              <Layout />
+            </OrganizerRoute>
+          </ProtectedRoute>
+        }>
+          <Route index element={<ContentGenerator />} />
+        </Route>
         
         {/* Route 404 */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      
       {/* Snackbar global */}
       <Snackbar
         open={snackbar.open}
@@ -190,25 +340,15 @@ function AppRoutes() {
           {snackbar.message}
         </Alert>
       </Snackbar>
-      </>
+      
+      {/* Chatbot IA flottant - visible partout */}
+      <AIChatbotWidget />
+    </>
   );
 }
 
 // Mémoriser la promesse Stripe pour éviter les re-créations
 const stripePublicKey = process.env.REACT_APP_STRIPE_PK || '';
 const stripePromise = stripePublicKey ? loadStripe(stripePublicKey) : null;
-
-// Composant wrapper pour Stripe pour éviter les changements de props
-function StripeWrapper({ children }) {
-  if (stripePromise) {
-    return (
-      <Elements stripe={stripePromise}>
-        {children}
-      </Elements>
-    );
-  }
-  
-  return children;
-}
 
 export default App; 

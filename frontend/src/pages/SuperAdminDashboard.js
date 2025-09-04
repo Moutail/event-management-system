@@ -35,9 +35,10 @@ import CategoryTagManagement from '../components/CategoryTagManagement';
 import SystemHealth from '../components/SystemHealth';
 import UserCreationModal from '../components/UserCreationModal';
 import EventDetailModal from '../components/EventDetailModal';
-import DebugAuth from '../components/DebugAuth';
 import UserManagement from '../components/UserManagement';
 import EventManagement from '../components/EventManagement';
+import PredictiveAnalytics from '../components/PredictiveAnalytics';
+// import PendingRegistrations from '../components/PendingRegistrations';
 
 // Composant pour les statistiques
 const StatsCard = ({ title, value, subtitle, icon, color = 'primary' }) => (
@@ -247,10 +248,15 @@ const SuperAdminDashboard = () => {
             <Tab label="Événements" icon={<EventIcon />} />
             <Tab label="Modération" icon={<WarningIcon />} />
             <Tab label="Remboursements" icon={<MoneyIcon />} />
+            {/* 
+              Onglet "Inscriptions en Attente" temporairement désactivé
+              TODO: Réactiver quand la fonctionnalité sera prête pour la production
+            */}
+            {/* <Tab label="Inscriptions en Attente" icon={<PeopleIcon />} /> */}
             <Tab label="Analytics" icon={<TrendingIcon />} />
+            <Tab label="IA Prédictive" icon={<TrendingIcon />} />
             <Tab label="Catégories & Tags" icon={<CategoryIcon />} />
             <Tab label="Système" icon={<SettingsIcon />} />
-            <Tab label="Debug Auth" icon={<SettingsIcon />} />
           </Tabs>
 
           {/* Contenu des tabs */}
@@ -270,20 +276,28 @@ const SuperAdminDashboard = () => {
             <SuperAdminRefundManagement />
           )}
 
+          {/* 
+            Contenu de l'onglet "Inscriptions en Attente" temporairement désactivé
+            TODO: Réactiver quand la fonctionnalité sera prête pour la production
+          */}
+          {/* {activeTab === 4 && (
+            <PendingRegistrations />
+          )} */}
+
           {activeTab === 4 && (
             <PlatformAnalytics />
           )}
 
           {activeTab === 5 && (
-            <CategoryTagManagement />
+            <PredictiveAnalytics />
           )}
 
           {activeTab === 6 && (
-            <SystemHealth />
+            <CategoryTagManagement />
           )}
 
           {activeTab === 7 && (
-            <DebugAuth />
+            <SystemHealth />
           )}
         </CardContent>
       </Card>

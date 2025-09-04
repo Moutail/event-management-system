@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
 from django.utils.safestring import mark_safe
-from .models import Event, Category, Tag, EventRegistration, EventHistory, TicketType
+from .models import Event, Category, Tag, EventRegistration, EventHistory, TicketType, SessionType, CustomReminder, CustomReminderRecipient
 
 
 @admin.register(Category)
@@ -156,6 +156,25 @@ class TicketTypeAdmin(admin.ModelAdmin):
     ordering = ['event', 'price']
 
 
+@admin.register(SessionType)
+class SessionTypeAdmin(admin.ModelAdmin):
+    list_display = ['name', 'event', 'is_active', 'is_mandatory', 'display_order']
+    list_filter = ['is_active', 'is_mandatory', 'event']
+    search_fields = ['name', 'event__title']
+    ordering = ['event', 'display_order', 'name']
+    
+    fieldsets = (
+        ('Informations de base', {
+            'fields': ('event', 'name')
+        }),
+        ('Statut', {
+            'fields': ('is_active', 'is_mandatory', 'display_order')
+        }),
+    )
+    
+    readonly_fields = ['created_at', 'updated_at']
+
+
 @admin.register(EventRegistration)
 class EventRegistrationAdmin(admin.ModelAdmin):
     list_display = [
@@ -204,4 +223,52 @@ class EventHistoryAdmin(admin.ModelAdmin):
         return False
     
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('event', 'user') 
+        return super().get_queryset(request).select_related('event', 'user')
+
+
+@admin.register(CustomReminder)
+class CustomReminderAdmin(admin.ModelAdmin):
+    list_display = ['title', 'event', 'created_by', 'reminder_type', 'target_audience', 'status', 'created_at']
+    list_filter = ['status', 'reminder_type', 'target_audience', 'created_at']
+    search_fields = ['title', 'message', 'event__title', 'created_by__username']
+    readonly_fields = ['created_at', 'updated_at', 'sent_at', 'emails_sent', 'sms_sent', 'emails_failed', 'sms_failed']
+    fieldsets = (
+        ('Informations générales', {
+            'fields': ('title', 'message', 'reminder_type', 'event', 'created_by')
+        }),
+        ('Audience et canaux', {
+            'fields': ('target_audience', 'send_email', 'send_sms')
+        }),
+        ('Programmation', {
+            'fields': ('scheduled_at', 'status')
+        }),
+        ('Statistiques', {
+            'fields': ('sent_at', 'emails_sent', 'sms_sent', 'emails_failed', 'sms_failed'),
+            'classes': ('collapse',)
+        }),
+        ('Métadonnées', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(CustomReminderRecipient)
+class CustomReminderRecipientAdmin(admin.ModelAdmin):
+    list_display = ['reminder', 'registration', 'guest_name', 'guest_email']
+    list_filter = ['reminder__status', 'registration__status']
+    search_fields = ['reminder__title', 'registration__guest_full_name', 'registration__guest_email']
+    
+    def guest_name(self, obj):
+        if obj.registration.user:
+            return f"{obj.registration.user.first_name} {obj.registration.user.last_name}".strip() or obj.registration.user.username
+        else:
+            return obj.registration.guest_full_name
+    guest_name.short_description = 'Nom'
+    
+    def guest_email(self, obj):
+        if obj.registration.user:
+            return obj.registration.user.email
+        else:
+            return obj.registration.guest_email
+    guest_email.short_description = 'Email'

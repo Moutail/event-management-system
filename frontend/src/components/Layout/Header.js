@@ -28,6 +28,9 @@ import {
   Event as EventIcon,
   Add as AddIcon,
   QrCodeScanner as ScannerIcon,
+  Logout as LogoutIcon,
+  Info as InfoIcon,
+  ContactSupport as ContactIcon,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -60,7 +63,7 @@ const Header = () => {
 
   const handleProfile = () => {
     handleClose();
-    navigate('/profile');
+    navigate('/dashboard/profile');
   };
 
   const handleDashboard = () => {
@@ -72,15 +75,30 @@ const Header = () => {
     setMobileMenuOpen(false);
   };
 
+  // Fonctions pour les nouveaux liens
+  const handleAbout = () => {
+    navigate('/about');
+  };
+
+  const handleContact = () => {
+    navigate('/contact');
+  };
+
   const mobileMenuItems = [
-    { text: 'Événements', icon: <EventIcon />, action: () => navigate('/events') },
-    { text: 'Créer un événement', icon: <AddIcon />, action: () => navigate('/create-event') },
-    { text: 'Scanner billets', icon: <ScannerIcon />, action: () => navigate('/scan') },
-    { text: 'Mon Profil', icon: <AccountCircle />, action: () => navigate('/profile') },
-    { text: 'Tableau de bord', icon: <EventIcon />, action: () => navigate('/dashboard') },
-    { text: 'Mes Événements', icon: <EventIcon />, action: () => navigate('/my-events') },
+    { text: 'Accueil', icon: <EventIcon />, action: () => navigate('/') },
+    { text: 'Mon Profil', icon: <AccountCircle />, action: () => navigate('/dashboard/profile') },
+    { text: 'Événements', icon: <EventIcon />, action: () => navigate('/dashboard/events') },
+    { text: 'Mes Inscriptions', icon: <AddIcon />, action: () => navigate('/dashboard/my-registrations') },
+    { text: 'À propos', icon: <InfoIcon />, action: () => navigate('/about') },
+    { text: 'Contact', icon: <ContactIcon />, action: () => navigate('/contact') },
+    ...(user?.profile?.role === 'organizer' || user?.profile?.role === 'super_admin' ? [
+      { text: 'Tableau de bord', icon: <EventIcon />, action: () => navigate('/dashboard') },
+      { text: 'Mes Événements', icon: <EventIcon />, action: () => navigate('/dashboard/my-events') },
+      { text: 'Créer un événement', icon: <EventIcon />, action: () => navigate('/dashboard/create-event') },
+      { text: 'Scanner billets', icon: <ScannerIcon />, action: () => navigate('/scan') },
+    ] : []),
     ...(user?.profile?.role === 'super_admin' ? [
-      { text: '👑 Super Admin', icon: <AccountCircle />, action: () => navigate('/super-admin') }
+      { text: '👑 Super Admin', icon: <AccountCircle />, action: () => navigate('/dashboard/super-admin') }
     ] : []),
   ];
 
@@ -160,7 +178,7 @@ const Header = () => {
 
           <Button 
             color="inherit" 
-            onClick={() => navigate('/events')}
+            onClick={() => navigate('/dashboard/events')}
             sx={{
               '&:hover': {
                 backgroundColor: 'rgba(255,255,255,0.15)',
@@ -173,40 +191,79 @@ const Header = () => {
             Événements
           </Button>
 
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={() => navigate('/create-event')}
+          {/* Lien À propos */}
+          <Button
+            color="inherit"
+            startIcon={<InfoIcon />}
+            onClick={handleAbout}
             sx={{
-              '&:hover': {
-                transform: 'translateY(-1px)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-              },
-              transition: 'all 0.2s ease-in-out',
-              fontWeight: 600,
-            }}
-          >
-            Créer un événement
-          </Button>
-          
-          <Button 
-            variant="outlined" 
-            color="inherit" 
-            onClick={() => navigate('/scan')}
-            sx={{
-              borderColor: 'rgba(255,255,255,0.7)',
-              color: '#ffffff',
               '&:hover': {
                 backgroundColor: 'rgba(255,255,255,0.15)',
-                borderColor: '#ffffff',
                 transform: 'translateY(-1px)',
               },
               transition: 'all 0.2s ease-in-out',
-              fontWeight: 600,
+              fontWeight: 500,
             }}
           >
-            Scanner billets
+            À propos
           </Button>
+
+          {/* Lien Contact */}
+          <Button
+            color="inherit"
+            startIcon={<ContactIcon />}
+            onClick={handleContact}
+            sx={{
+              '&:hover': {
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                transform: 'translateY(-1px)',
+              },
+              transition: 'all 0.2s ease-in-out',
+              fontWeight: 500,
+            }}
+          >
+            Contact
+          </Button>
+
+          {/* Boutons organisateur - Seulement pour organisateurs et super admins */}
+          {user?.profile?.role !== 'participant' && (
+            <>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                onClick={() => navigate('/dashboard/create-event')}
+                sx={{
+                  '&:hover': {
+                    transform: 'translateY(-1px)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                  fontWeight: 600,
+                }}
+              >
+                Créer un événement
+              </Button>
+              
+              <Button 
+                variant="outlined" 
+                color="inherit" 
+                onClick={() => navigate('/scan')}
+                sx={{
+                  borderColor: 'rgba(255,255,255,0.7)',
+                  color: '#ffffff',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255,255,255,0.15)',
+                    borderColor: '#ffffff',
+                    transform: 'translateY(-1px)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                  fontWeight: 600,
+                }}
+              >
+                Scanner billets
+              </Button>
+            </>
+          )}
         </Box>
 
         {/* Menu mobile */}
@@ -236,38 +293,42 @@ const Header = () => {
           </IconButton>
         </Box>
 
-        {/* Avatar et menu utilisateur */}
-        <IconButton
-          size="large"
-          aria-label="account of current user"
-          aria-controls="menu-appbar"
-          aria-haspopup="true"
-          onClick={handleMenu}
-          color="inherit"
-          sx={{
-            '&:hover': {
-              backgroundColor: 'rgba(255,255,255,0.15)',
-              transform: 'scale(1.05)',
-            },
-            transition: 'all 0.2s ease-in-out',
-          }}
-        >
-          {user?.profile_picture ? (
-            <Avatar
-              src={user.profile_picture}
-              alt={user.username}
-              sx={{ 
-                boxShadow: '0 0 0 2px rgba(255,255,255,0.8)',
-                '&:hover': {
-                  boxShadow: '0 0 0 3px rgba(255,255,255,1)',
-                },
-                transition: 'all 0.2s ease-in-out',
-              }}
-            />
-          ) : (
-            <AccountCircle sx={{ fontSize: 32 }} />
-          )}
-        </IconButton>
+        {/* Avatar et menu utilisateur - Pour TOUS les utilisateurs connectés */}
+        {user && (
+          <IconButton
+            size="large"
+            aria-label="account of current user"
+            aria-controls="menu-appbar"
+            aria-haspopup="true"
+            onClick={handleMenu}
+            color="inherit"
+            sx={{
+              '&:hover': {
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                transform: 'scale(1.05)',
+              },
+              transition: 'all 0.2s ease-in-out',
+            }}
+          >
+            {user?.profile_picture ? (
+              <Avatar
+                src={user.profile_picture}
+                alt={user.username}
+                sx={{ 
+                  boxShadow: '0 0 0 2px rgba(255,255,255,0.8)',
+                  '&:hover': {
+                    boxShadow: '0 0 0 3px rgba(255,255,255,1)',
+                  },
+                  transition: 'all 0.2s ease-in-out',
+                }}
+              />
+            ) : (
+              <Avatar sx={{ bgcolor: 'secondary.main' }}>
+                {user?.username ? user.username.charAt(0).toUpperCase() : <AccountCircle />}
+              </Avatar>
+            )}
+          </IconButton>
+        )}
 
         {/* Menu utilisateur */}
         <Menu
@@ -287,29 +348,49 @@ const Header = () => {
           PaperProps={{
             sx: {
               mt: 1,
-              minWidth: 180,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              border: '1px solid rgba(255,255,255,0.1)',
+              minWidth: 200,
+              boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
               borderRadius: 2,
-              '& .MuiMenuItem-root': {
-                px: 2,
-                py: 1.5,
-                '&:hover': {
-                  backgroundColor: 'rgba(108,99,255,0.1)',
-                },
-              },
             },
           }}
         >
-          <MenuItem onClick={handleProfile}>Mon Profil</MenuItem>
-          <MenuItem onClick={handleDashboard}>Tableau de bord</MenuItem>
-          <MenuItem onClick={() => navigate('/my-events')}>Mes Événements</MenuItem>
-          {user?.profile?.role === 'super_admin' && (
-            <MenuItem onClick={() => navigate('/super-admin')}>
-              👑 Super Admin
-            </MenuItem>
+          <MenuItem onClick={() => { handleClose(); navigate('/dashboard/profile'); }}>
+            <AccountCircle sx={{ mr: 2, color: 'primary.main' }} />
+            Mon Profil
+          </MenuItem>
+          <MenuItem onClick={() => { handleClose(); navigate('/'); }}>
+            <EventIcon sx={{ mr: 2, color: 'primary.main' }} />
+            Accueil
+          </MenuItem>
+          <MenuItem onClick={() => { handleClose(); navigate('/dashboard/events'); }}>
+            <EventIcon sx={{ mr: 2, color: 'primary.main' }} />
+            Événements
+          </MenuItem>
+          <MenuItem onClick={() => { handleClose(); navigate('/dashboard/my-registrations'); }}>
+            <AddIcon sx={{ mr: 2, color: 'primary.main' }} />
+            Mes Inscriptions
+          </MenuItem>
+          
+          {/* Options supplémentaires pour organisateurs et super admins */}
+          {(user?.profile?.role === 'organizer' || user?.profile?.role === 'super_admin') && (
+            <>
+              <MenuItem onClick={() => { handleClose(); navigate('/dashboard'); }}>
+                <EventIcon sx={{ mr: 2, color: 'primary.main' }} />
+                Tableau de bord
+              </MenuItem>
+              {user?.profile?.role === 'super_admin' && (
+                <MenuItem onClick={() => { handleClose(); navigate('/dashboard/super-admin'); }}>
+                  <AccountCircle sx={{ mr: 2, color: 'primary.main' }} />
+                  👑 Super Admin
+                </MenuItem>
+              )}
+            </>
           )}
-          <MenuItem onClick={handleLogout}>Déconnexion</MenuItem>
+          
+          <MenuItem onClick={handleLogout}>
+            <LogoutIcon sx={{ mr: 2, color: 'error.main' }} />
+            Déconnexion
+          </MenuItem>
         </Menu>
 
         {/* Drawer mobile */}

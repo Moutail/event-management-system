@@ -15,11 +15,15 @@ import {
   Home as HomeIcon,
   Event as EventIcon,
   Add as AddIcon,
-  Dashboard as DashboardIcon,
   Person as PersonIcon,
   Bookmark as BookmarkIcon,
   QrCodeScanner as QrCodeScannerIcon,
   AdminPanelSettings as SuperAdminIcon,
+  VideoCall as VideoCallIcon,
+  Analytics as AnalyticsIcon,
+  AutoAwesome as AutoAwesomeIcon,
+  AttachMoney as MoneyIcon,
+  Email as EmailIcon,
 } from '@mui/icons-material';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -29,12 +33,30 @@ const drawerWidth = 240;
 
 const baseMenuItems = [
   { text: 'Accueil', icon: <HomeIcon />, path: '/' },
-  { text: 'Événements', icon: <EventIcon />, path: '/events' },
-  { text: 'Créer un événement', icon: <AddIcon />, path: '/create-event' },
-  { text: 'Mes événements', icon: <EventIcon />, path: '/my-events' },
-  { text: 'Mes inscriptions', icon: <BookmarkIcon />, path: '/my-registrations' },
-  { text: 'Tableau de bord', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'Mon profil', icon: <PersonIcon />, path: '/profile' },
+  { text: 'Événements', icon: <EventIcon />, path: '/dashboard/events' },
+  { text: 'Mon profil', icon: <PersonIcon />, path: '/dashboard/profile' },
+];
+
+const organizerMenuItems = [
+  { text: 'Créer un événement', icon: <AddIcon />, path: '/dashboard/create-event' },
+  { text: 'Mes événements', icon: <EventIcon />, path: '/dashboard/my-events' },
+  { text: '📧 Rappels', icon: <EmailIcon />, path: '/dashboard/reminders' },
+  { text: '💰 Remboursements', icon: <MoneyIcon />, path: '/dashboard/refunds' },
+  { text: 'Scanner billets', icon: <QrCodeScannerIcon />, path: '/dashboard/scan' },
+];
+
+const participantMenuItems = [
+  { text: 'Mes inscriptions', icon: <BookmarkIcon />, path: '/dashboard/my-registrations' },
+];
+
+const virtualEventItems = [
+  { text: 'Événements virtuels', icon: <VideoCallIcon />, path: '/dashboard/virtual-events' },
+  { text: 'Créer événement virtuel', icon: <AddIcon />, path: '/dashboard/virtual-events/create' },
+  { text: 'Analytics virtuels', icon: <AnalyticsIcon />, path: '/dashboard/virtual-events/analytics' },
+];
+
+const aiItems = [
+  { text: '🤖 Générateur IA', icon: <AutoAwesomeIcon />, path: '/dashboard/ai-content-generator' },
 ];
 
 const Sidebar = () => {
@@ -67,18 +89,30 @@ const Sidebar = () => {
         {(() => {
           let menuItems = [...baseMenuItems];
           
-          // Ajouter Scanner billets pour staff
-          if (user && user.is_staff) {
-            menuItems.splice(6, 0, { text: 'Scanner billets', icon: <QrCodeScannerIcon />, path: '/scan' });
-          }
-          
-          // Ajouter Super Admin Dashboard pour super admins
-          if (user && (
-            user.is_staff || 
-            user.is_superuser || 
-            (user.profile && user.profile.role === 'super_admin')
-          )) {
-            menuItems.splice(6, 0, { text: '🎛️ Super Admin', icon: <SuperAdminIcon />, path: '/super-admin' });
+          // Ajouter les options selon le rôle
+          if (user && user.profile) {
+            const userRole = user.profile.role;
+            
+            if (userRole === 'participant') {
+              // PARTICIPANTS : seulement les options de base + inscriptions
+              menuItems.push(...participantMenuItems);
+            } else if (userRole === 'organizer' || userRole === 'super_admin') {
+              // ORGANISATEURS & SUPER ADMINS : toutes les options
+              menuItems.push(...organizerMenuItems);
+              
+              // Ajouter Super Admin Dashboard pour super admins
+              if (userRole === 'super_admin' || user.is_superuser) {
+                menuItems.splice(3, 0, { text: '🎛️ Super Admin', icon: <SuperAdminIcon />, path: '/dashboard/super-admin' });
+              }
+              
+              // Ajouter la section des événements virtuels
+              menuItems.push(...virtualEventItems);
+              
+              // Ajouter la section IA seulement pour les organisateurs et super admins
+              if (userRole === 'organizer' || userRole === 'super_admin') {
+                menuItems.push(...aiItems);
+              }
+            }
           }
           
           return menuItems;

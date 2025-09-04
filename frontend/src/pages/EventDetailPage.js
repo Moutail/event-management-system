@@ -65,7 +65,9 @@ import { useLocale } from '../hooks/useLocale';
 import RegistrationModal from '../components/RegistrationModal';
 import WaitlistManagement from '../components/WaitlistManagement';
 import RefundManagement from '../components/RefundManagement';
+import VirtualEventRecordingManager from '../components/VirtualEventRecordingManager';
 import { eventAPI } from '../services/api';
+import api from '../services/api';
 
 const EventDetailPage = () => {
   const dispatch = useDispatch();
@@ -88,6 +90,15 @@ const EventDetailPage = () => {
     ? myRegistrations.find(reg => (Number(reg.event) === Number(id) || Number(reg.event?.id) === Number(id)))
     : null;
   const canCancel = !!(userRegistration && ['pending', 'confirmed', 'waitlisted', 'attended'].includes(userRegistration.status));
+  
+  // Vérifier si on peut annuler (plus de 12h avant l'événement)
+  const canCancelRegistration = canCancel && (() => {
+    if (!currentEvent?.start_date) return false;
+    const eventStart = new Date(currentEvent.start_date);
+    const now = new Date();
+    const hoursUntilEvent = (eventStart - now) / (1000 * 60 * 60);
+    return hoursUntilEvent > 12;
+  })();
   const isConfirmed = !!(userRegistration && ['confirmed', 'attended'].includes(userRegistration.status));
   const isPending = !!(userRegistration && userRegistration.status === 'pending');
   const isWaitlisted = !!(userRegistration && userRegistration.status === 'waitlisted');
@@ -118,10 +129,21 @@ const EventDetailPage = () => {
 
   // Fonction pour ouvrir le modal d'inscription
   const handleRegisterClick = () => {
-    if (!user) {
-      navigate('/login');
+    // 🎯 NOUVELLE LOGIQUE : Permettre aux visiteurs de s'inscrire sans compte
+    // Plus besoin de rediriger vers /login - on ouvre directement le modal
+    
+    // Vérifier si l'événement est complet et que la liste d'attente est désactivée
+    if (currentEvent.place_type === 'limited' && 
+        currentEvent.max_capacity && 
+        (currentEvent.max_capacity - (currentEvent.current_registrations || 0)) <= 0 && 
+        !currentEvent.enable_waitlist) {
+      dispatch(showSnackbar({ 
+        message: 'Événement complet - Inscriptions fermées', 
+        severity: 'error' 
+      }));
       return;
     }
+    
     setRegistrationModalOpen(true);
   };
 
@@ -132,6 +154,26 @@ const EventDetailPage = () => {
     dispatch(fetchEventById(id));
     if (user) {
       dispatch(fetchMyRegistrations());
+    }
+  };
+
+  // Fonction pour rejoindre le stream avec vérification de paiement
+  const handleJoinStream = async () => {
+    try {
+      // Appeler d'abord l'API sécurisée pour vérifier le paiement
+      const response = await eventAPI.post(`/streaming/${currentEvent.id}/join/`);
+      if (response.data.success) {
+        // Rediriger vers l'URL sécurisée
+        window.open(response.data.stream_info.meeting_url, '_blank');
+      }
+    } catch (error) {
+      if (error.response?.status === 403) {
+        // Paiement non confirmé
+        alert('Accès refusé - Vous devez avoir un billet payé et confirmé pour accéder à ce stream');
+      } else {
+        // Autre erreur
+        alert('Erreur lors de l\'accès au stream: ' + (error.response?.data?.error || error.message));
+      }
     }
   };
 
@@ -153,7 +195,15 @@ const EventDetailPage = () => {
   const handleExport = async (type) => {
     if (!currentEvent) return;
     try {
-      const res = await eventAPI.exportEventData(currentEvent.id, type);
+      let res;
+      if (type === 'csv') {
+        res = await eventAPI.exportRegistrationsCSV(currentEvent.id);
+      } else if (type === 'excel') {
+        res = await eventAPI.exportRegistrationsExcel(currentEvent.id);
+      } else {
+        throw new Error('Type d\'export non supporté');
+      }
+      
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -164,6 +214,7 @@ const EventDetailPage = () => {
       window.URL.revokeObjectURL(url);
       dispatch(showSnackbar({ message: `Export ${type.toUpperCase()} réussi`, severity: 'success' }));
     } catch (error) {
+      console.error('Erreur lors de l\'export:', error);
       dispatch(showSnackbar({ message: 'Erreur lors de l\'export', severity: 'error' }));
     }
   };
@@ -274,11 +325,11 @@ const EventDetailPage = () => {
               {currentEvent.is_free ? 'Gratuit' : formatPrice(currentEvent.price)}
                 </Typography>
           </Box>
-          {currentEvent.capacity && (
+          {currentEvent.place_type === 'limited' && currentEvent.max_capacity && (
             <Box sx={{ display: 'flex', alignItems: 'center' }}>
               <SeatIcon sx={{ color: 'info.main', mr: 1 }} />
                 <Typography variant="body2" color="text.secondary">
-                {currentEvent.registration_count || 0} / {currentEvent.capacity} places
+                {currentEvent.current_registrations || 0} / {currentEvent.max_capacity} places
                 </Typography>
               </Box>
           )}
@@ -446,12 +497,12 @@ const EventDetailPage = () => {
               <ListItem>
                 <ListItemIcon>
                   <Avatar src={participant.user?.avatar}>
-                    {participant.user?.first_name?.[0]}{participant.user?.last_name?.[0]}
+                    {participant.guest_display_name?.[0] || participant.user?.first_name?.[0] || '?'}
                   </Avatar>
                 </ListItemIcon>
                 <ListItemText
-                  primary={`${participant.user?.first_name} ${participant.user?.last_name}`}
-                  secondary={`${participant.user?.email} • ${participant.ticket_type_name || 'Par défaut'} • ${formatPrice(participant.price_paid || 0)}`}
+                  primary={participant.guest_display_name || `${participant.user?.first_name} ${participant.user?.last_name}`}
+                  secondary={`${participant.guest_display_email || participant.user?.email} • ${participant.ticket_type_name || 'Par défaut'} • ${formatPrice(participant.price_paid || 0)}${participant.session_type_name ? ` • Session: ${participant.session_type_name}` : ''}`}
                 />
                 <Chip
                   label={participant.status}
@@ -589,6 +640,84 @@ const EventDetailPage = () => {
 
           {/* Participants (si organisateur) */}
           {(currentEvent.organizer?.id === user?.id || user?.is_staff) && renderParticipants()}
+
+          {/* Gestionnaire de streaming pour événements virtuels */}
+          {currentEvent.event_type === 'virtual' && (
+            <Paper elevation={1} sx={{ 
+              p: 3, 
+              mb: 3,
+              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+              border: '1px solid rgba(148,163,184,0.2)',
+              borderRadius: 2,
+            }}>
+              {/* L'AUTEUR de l'événement OU le SUPERADMIN peut gérer le streaming */}
+              {user && (user.id === currentEvent.organizer?.id || user.is_superuser) ? (
+                <VirtualEventRecordingManager 
+                  event={currentEvent} 
+                  onUpdate={() => {
+                    // Rafraîchir les données de l'événement si nécessaire
+                    dispatch(fetchEventById(id));
+                  }}
+                />
+              ) : (
+                /* Les autres utilisateurs voient les infos de streaming */
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'primary.main' }}>
+                    🎥 Informations de Streaming
+                  </Typography>
+                  
+                  {currentEvent.virtual_details?.meeting_url ? (
+                    <Box>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Cliquez sur le bouton ci-dessous pour rejoindre l'événement virtuel
+                      </Typography>
+                      
+                      <Button
+                        variant="contained"
+                        color="success"
+                        fullWidth
+                        size="large"
+                        startIcon={<VideoIcon />}
+                        onClick={handleJoinStream}
+                        sx={{
+                          py: 1.5,
+                          fontWeight: 600,
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: 4,
+                          },
+                        }}
+                      >
+                        Rejoindre le Live
+                      </Button>
+                      
+                      {currentEvent.virtual_details?.access_instructions && (
+                        <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mb: 1 }}>
+                            Instructions d'accès :
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                            {currentEvent.virtual_details.access_instructions}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  ) : (
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Le lien de connexion sera disponible bientôt
+                      </Typography>
+                      <Chip 
+                        label="En attente" 
+                        color="warning" 
+                        variant="outlined"
+                      />
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Paper>
+          )}
         </Grid>
 
         {/* Colonne latérale */}
@@ -630,15 +759,23 @@ const EventDetailPage = () => {
               </Typography>
               
                 {canCancel && (
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    fullWidth
-                    onClick={handleCancelRegistration}
-                    sx={{ mb: 2 }}
-                  >
-                    Annuler l'inscription
-                  </Button>
+                  <Box sx={{ mb: 2 }}>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      fullWidth
+                      onClick={handleCancelRegistration}
+                      disabled={!canCancelRegistration}
+                      sx={{ mb: 1 }}
+                    >
+                      Annuler l'inscription
+                    </Button>
+                    {!canCancelRegistration && (
+                      <Typography variant="caption" color="warning.main" sx={{ display: 'block', textAlign: 'center', fontStyle: 'italic' }}>
+                        Annulation impossible moins de 12h avant l'événement
+                      </Typography>
+                    )}
+                  </Box>
                 )}
 
                 <Button
@@ -698,31 +835,105 @@ const EventDetailPage = () => {
               </Box>
             ) : (
               <Box sx={{ textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                  {currentEvent.capacity ? 
-                    `${currentEvent.capacity - (currentEvent.registration_count || 0)} places disponibles` : 
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  {currentEvent.place_type === 'limited' && currentEvent.max_capacity ? (
+                    (currentEvent.max_capacity - (currentEvent.current_registrations || 0)) > 0 ? (
+                      `${currentEvent.max_capacity - (currentEvent.current_registrations || 0)} places disponibles`
+                    ) : (
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" component="span" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
+                            {currentEvent.max_capacity} places
+                          </Typography>
+                          <Typography variant="body2" component="span" color="warning.main" sx={{ fontWeight: 500 }}>
+                            (Complet)
+                          </Typography>
+                        </Box>
+                        {currentEvent.enable_waitlist ? (
+                          <Typography variant="caption" color="info.main" sx={{ fontStyle: 'italic' }}>
+                            Vous pouvez vous inscrire et serez placé sur liste d'attente
+                          </Typography>
+                        ) : (
+                          <Typography variant="caption" color="error.main" sx={{ fontStyle: 'italic', fontWeight: 500 }}>
+                            Événement complet - Inscriptions fermées
+                          </Typography>
+                        )}
+                      </Box>
+                    )
+                  ) : (
                     'Places illimitées'
-                  }
-                  </Typography>
+                  )}
+                </Typography>
+
+                {/* 🎯 NOUVEAU MESSAGE : Information pour les visiteurs */}
+                {!user && (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    👋 <strong>Visiteur ?</strong> Vous pouvez vous inscrire sans créer de compte ! 
+                    Remplissez simplement le formulaire avec vos informations.
+                  </Alert>
+                )}
 
                 <Button
                   variant="contained"
                   size="large"
                   fullWidth
                   onClick={handleRegisterClick}
-                  disabled={currentEvent.status !== 'published'}
+                  disabled={
+                    currentEvent.status !== 'published' || 
+                    new Date(currentEvent.end_date) < new Date() ||
+                    // 🎯 LOGIQUE UNIFIÉE : Désactiver si l'événement est complet et que la liste d'attente est désactivée
+                    (currentEvent.place_type === 'limited' && 
+                     currentEvent.max_capacity && 
+                     (currentEvent.max_capacity - (currentEvent.current_registrations || 0)) <= 0 && 
+                     !currentEvent.enable_waitlist)
+                  }
                   sx={{
-                    background: 'linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%)',
+                    background: (() => {
+                      if (currentEvent.status !== 'published' || new Date(currentEvent.end_date) < new Date()) {
+                        return '#ccc';
+                      }
+                      if (currentEvent.place_type === 'limited' && 
+                          currentEvent.max_capacity && 
+                          (currentEvent.max_capacity - (currentEvent.current_registrations || 0)) <= 0 && 
+                          !currentEvent.enable_waitlist) {
+                        return '#f44336'; // Rouge pour SOLD OUT
+                      }
+                      return 'linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%)';
+                    })(),
                     fontWeight: 600,
                     py: 1.5,
                     '&:hover': {
-                      background: 'linear-gradient(135deg, #4338CA 0%, #0891B2 100%)',
-                      transform: 'translateY(-2px)',
+                      background: (() => {
+                        if (currentEvent.status !== 'published' || new Date(currentEvent.end_date) < new Date()) {
+                          return '#ccc';
+                        }
+                        if (currentEvent.place_type === 'limited' && 
+                            currentEvent.max_capacity && 
+                            (currentEvent.max_capacity - (currentEvent.current_registrations || 0)) <= 0 && 
+                            !currentEvent.enable_waitlist) {
+                          return '#d32f2f'; // Rouge foncé pour SOLD OUT
+                        }
+                        return 'linear-gradient(135deg, #4338CA 0%, #0891B2 100%)';
+                      })(),
                     },
-                    transition: 'all 0.3s ease-in-out',
+                    transform: 'translateY(-2px)',
                   }}
                 >
-                  {currentEvent.status === 'published' ? 'S\'inscrire' : 'Inscriptions fermées'}
+                  {(() => {
+                    if (currentEvent.status !== 'published') return 'Inscriptions fermées';
+                    if (new Date(currentEvent.end_date) < new Date()) return 'Événement terminé';
+                    if (currentEvent.place_type === 'limited' && 
+                        currentEvent.max_capacity && 
+                        (currentEvent.max_capacity - (currentEvent.current_registrations || 0)) <= 0 && 
+                        !currentEvent.enable_waitlist) {
+                      return 'SOLD OUT';
+                    }
+                    // 🎯 NOUVEAU TEXTE : Plus clair pour les visiteurs
+                    if (!user) {
+                      return 'S\'inscrire (Visiteur)';
+                    }
+                    return 'S\'inscrire';
+                  })()}
                 </Button>
 
                 {/* Boutons de gestion pour l'organisateur (quand pas inscrit) */}
@@ -780,6 +991,87 @@ const EventDetailPage = () => {
                 </Box>
             )}
           </Paper>
+
+          {/* Section pour rejoindre le live (événements virtuels) */}
+          {currentEvent.event_type === 'virtual' && userRegistration && isConfirmed && (
+            <Paper elevation={2} sx={{ 
+              p: 3, 
+              mb: 3,
+              background: 'linear-gradient(135deg, #e8f5e8 0%, #f0f9f0 100%)',
+              border: '2px solid #4caf50',
+              borderRadius: 2,
+            }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600, color: 'success.main' }}>
+                🎥 Rejoindre le Live
+              </Typography>
+              
+              {currentEvent.virtual_details?.meeting_url ? (
+                <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Cliquez sur le bouton ci-dessous pour rejoindre l'événement virtuel
+                  </Typography>
+                  
+                  <Button
+                    variant="contained"
+                    color="success"
+                    fullWidth
+                    size="large"
+                    startIcon={<VideoIcon />}
+                    onClick={async () => {
+                      try {
+                        // Appeler d'abord l'API sécurisée pour vérifier le paiement
+                        const response = await api.post(`/streaming/${currentEvent.id}/join/`);
+                        if (response.data.success) {
+                          // Rediriger vers l'URL sécurisée
+                          window.open(response.data.stream_info.meeting_url, '_blank');
+                        }
+                      } catch (error) {
+                        if (error.response?.status === 403) {
+                          // Paiement non confirmé
+                          alert('Accès refusé - Vous devez avoir un billet payé et confirmé pour accéder à ce stream');
+                        } else {
+                          // Autre erreur
+                          alert('Erreur lors de l\'accès au stream: ' + (error.response?.data?.error || error.message));
+                        }
+                      }
+                    }}
+                    sx={{
+                      py: 1.5,
+                      fontWeight: 600,
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
+                        boxShadow: 4,
+                      },
+                    }}
+                  >
+                    Rejoindre le Live
+                  </Button>
+                  
+                  {currentEvent.virtual_details?.access_instructions && (
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500, mb: 1 }}>
+                        Instructions d'accès :
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.875rem' }}>
+                        {currentEvent.virtual_details.access_instructions}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              ) : (
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Le lien de connexion sera disponible bientôt
+                  </Typography>
+                  <Chip 
+                    label="En attente" 
+                    color="warning" 
+                    variant="outlined"
+                  />
+                </Box>
+              )}
+            </Paper>
+          )}
 
           {/* Carte de localisation */}
           <Paper elevation={1} sx={{ 

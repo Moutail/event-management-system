@@ -1,0 +1,37 @@
+🎉 Inscription Approuvée !
+
+Bonjour {{ guest_name }},
+
+Félicitations ! Votre inscription à l'événement "{{ event.title }}" a été approuvée.
+
+📅 Détails de l'événement :
+- Date : {{ event.start_date|date:"d/m/Y" }}
+- Heure : {{ event.start_date|date:"H:i" }}
+- Lieu : {{ event.location }}
+- Adresse : {{ event.address }}
+
+🎫 Votre QR-Code :
+Présentez ce QR-code à l'entrée de l'événement.
+
+📋 Instructions importantes :
+- Arrivez 15 minutes avant le début de l'événement
+- Présentez votre QR-code à l'entrée
+- Apportez une pièce d'identité
+
+Si vous avez des questions, contactez-nous à : {{ event.contact_email }}
+
+Nous avons hâte de vous accueillir !
+
+Cordialement,
+L'équipe {{ event.title }}
+
+---
+Cet email a été envoyé à {{ guest_email }}
+
+
+
+
+
+
+
+

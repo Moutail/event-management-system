@@ -1,49 +1,48 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
-Test simple des APIs Super Admin
+🧪 TEST SIMPLE DU SERVICE D'ANALYTICS PRÉDICTIFS
 """
+
 import os
+import sys
 import django
 
 # Configuration Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'event_management.settings')
 django.setup()
 
-from django.test import RequestFactory
-from django.contrib.auth.models import User
-from events.models import UserProfile
-from events.views import super_admin_global_stats, super_admin_analytics
+from events.predictive_analytics import get_predictive_service
 
-def test_apis():
-    """Tester les APIs sans serveur"""
-    print("🧪 Test des APIs Super Admin...")
+def test_service():
+    print("🎯 Test du service d'analytics prédictifs...")
     
-    # Créer un utilisateur de test
-    factory = RequestFactory()
-    
-    # 1. Tester l'API des statistiques globales
-    print("\n📊 Test API Statistiques Globales...")
     try:
-        request = factory.get('/admin/global_stats/')
-        request.user = User.objects.get(username='window7')
-        response = super_admin_global_stats(request)
-        print(f"   ✅ API fonctionne - Status: {response.status_code}")
-        print(f"   📊 Données: {len(response.data)} champs")
+        # Récupérer une instance du service
+        predictive_service = get_predictive_service()
+        
+        # Test de détection des tendances
+        trends = predictive_service.detect_emerging_trends(days_back=30)
+        print(f"✅ Tendances détectées: {trends['status']}")
+        
+        if trends['status'] == 'success':
+            print(f"📊 Catégories analysées: {len(trends.get('category_trends', []))}")
+            print(f"🏷️ Tags analysés: {len(trends.get('tag_trends', []))}")
+            print(f"📈 Tendances émergentes: {len(trends.get('emerging_trends', []))}")
+        
+        # Test des insights prédictifs
+        insights = predictive_service.get_predictive_insights()
+        print(f"🧠 Insights générés: {insights['status']}")
+        
+        if insights['status'] == 'success':
+            print(f"💡 Insights globaux: {len(insights.get('global_insights', []))}")
+            print(f"🎯 Recommandations: {len(insights.get('recommendations', []))}")
+        
+        print("✅ Tous les tests sont passés avec succès!")
+        
     except Exception as e:
-        print(f"   ❌ Erreur: {e}")
-    
-    # 2. Tester l'API Analytics
-    print("\n📈 Test API Analytics...")
-    try:
-        request = factory.get('/admin/analytics_advanced/?period=month')
-        request.user = User.objects.get(username='window7')
-        response = super_admin_analytics(request)
-        print(f"   ✅ API fonctionne - Status: {response.status_code}")
-        print(f"   📊 Données: {len(response.data)} sections")
-    except Exception as e:
-        print(f"   ❌ Erreur: {e}")
-    
-    print("\n🎯 Test terminé!")
+        print(f"❌ Erreur: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
-if __name__ == '__main__':
-    test_apis()
+if __name__ == "__main__":
+    test_service()

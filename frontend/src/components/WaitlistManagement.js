@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -39,13 +39,7 @@ const WaitlistManagement = ({ open, onClose, event }) => {
   const [selectedRegistration, setSelectedRegistration] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  useEffect(() => {
-    if (open && event?.id) {
-      loadWaitlistedRegistrations();
-    }
-  }, [open, event]);
-
-  const loadWaitlistedRegistrations = async () => {
+  const loadWaitlistedRegistrations = useCallback(async () => {
     setLoading(true);
     try {
       const response = await eventAPI.getWaitlistedRegistrations(event.id);
@@ -59,7 +53,13 @@ const WaitlistManagement = ({ open, onClose, event }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [event?.id, dispatch]);
+
+  useEffect(() => {
+    if (open && event?.id) {
+      loadWaitlistedRegistrations();
+    }
+  }, [open, event, loadWaitlistedRegistrations]);
 
   const handleApprove = async (registrationId) => {
     setActionLoading(prev => ({ ...prev, [registrationId]: 'approve' }));
@@ -280,6 +280,9 @@ const WaitlistManagement = ({ open, onClose, event }) => {
 };
 
 export default WaitlistManagement;
+
+
+
 
 
 

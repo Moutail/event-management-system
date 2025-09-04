@@ -21,3 +21,13 @@ qrcode==7.4.2
 openpyxl==3.1.5
 stripe==6.7.0
 reportlab==4.2.5
+
+# APIs de streaming
+google-api-python-client==2.108.0
+google-auth-httplib2==0.1.1
+google-auth-oauthlib==1.1.0
+requests==2.31.0
+
+# 🔐 AUTHENTIFICATION SOCIALE
+django-allauth==0.60.1
+requests-oauthlib==1.3.1

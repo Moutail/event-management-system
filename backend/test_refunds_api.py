@@ -1,66 +1,108 @@
 #!/usr/bin/env python
 """
-Test de l'API des remboursements
+🧪 TEST : API des remboursements pour vérifier qu'elle fonctionne
 """
+
 import os
+import sys
 import django
+from django.test import RequestFactory
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+from django.urls import reverse
+from rest_framework.test import APIClient
+from rest_framework import status
 
 # Configuration Django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'event_management.settings')
 django.setup()
 
-from django.test import RequestFactory
-from django.contrib.auth.models import User
-from events.models import UserProfile, RefundRequest, EventRegistration, Event
-from events.views import super_admin_refunds_list
+from events.models import Event, EventRegistration, RefundRequest, RefundPolicy
+from events.views import EventViewSet
+from django.utils import timezone
+from datetime import timedelta
 
-def test_refunds_api():
-    """Tester l'API des remboursements"""
-    print("🧪 Test de l'API des remboursements...")
-    
-    # Créer un utilisateur de test
-    factory = RequestFactory()
+def test_automatic_refund_creation():
+    """Test de la création automatique des remboursements lors de l'annulation d'un événement"""
+    print("🚀 Test de création automatique des remboursements")
     
     try:
-        # 1. Vérifier que le Super Admin existe
-        super_admin = User.objects.get(username='window7')
-        profile = UserProfile.objects.get(user=super_admin)
-        print(f"   ✅ Super Admin trouvé: {super_admin.username} (rôle: {profile.role})")
+        # Créer un utilisateur test
+        User = get_user_model()
+        user, created = User.objects.get_or_create(
+            username='test_organizer',
+            defaults={
+                'email': 'test@example.com',
+                'first_name': 'Test',
+                'last_name': 'Organizer'
+            }
+        )
         
-        # 2. Vérifier qu'il y a des remboursements en base
-        refunds_count = RefundRequest.objects.count()
-        print(f"   📊 Remboursements en base: {refunds_count}")
+        # Créer un événement payant
+        event = Event.objects.create(
+            title='TEST ÉVÉNEMENT PAYANT',
+            description='Test pour vérifier la création automatique des remboursements',
+            start_date=timezone.now() + timedelta(days=7),
+            end_date=timezone.now() + timedelta(days=7, hours=2),
+            location='Test Location',
+            price=50.00,  # Événement payant
+            organizer=user,
+            status='published'
+        )
         
-        if refunds_count > 0:
-            # Afficher quelques exemples
-            for refund in RefundRequest.objects.all()[:3]:
-                print(f"      - ID: {refund.id}, Status: {refund.status}, Montant: {refund.amount_paid}")
+        # Créer des inscriptions payantes
+        registration1 = EventRegistration.objects.create(
+            event=event,
+            user=user,
+            status='confirmed',
+            payment_status='paid',
+            price_paid=50.00
+        )
         
-        # 3. Tester l'API
-        request = factory.get('/refunds/')
-        request.user = super_admin
-        response = super_admin_refunds_list(request)
+        # Créer une inscription pour un invité
+        registration2 = EventRegistration.objects.create(
+            event=event,
+            user=None,
+            guest_full_name='Invité Test',
+            guest_email='invite@example.com',
+            status='confirmed',
+            payment_status='paid',
+            price_paid=50.00
+        )
         
-        print(f"   🔍 Test API - Status: {response.status_code}")
-        if hasattr(response, 'data'):
-            data = response.data
-            print(f"      📊 Données retournées: {len(data)} champs")
-            if 'results' in data:
-                print(f"      📝 Remboursements: {len(data['results'])}")
-                print(f"      📄 Total: {data['count']}")
-            else:
-                print(f"      ❌ Structure incorrecte: {list(data.keys())}")
+        print(f"✅ Événement créé: {event.title} (ID: {event.id})")
+        print(f"✅ Inscriptions créées: {EventRegistration.objects.filter(event=event).count()}")
+        
+        # Simuler l'annulation de l'événement
+        client = APIClient()
+        client.force_authenticate(user=user)
+        
+        response = client.post(f'/api/events/{event.id}/cancel/', {
+            'reason': 'Test de création automatique des remboursements'
+        })
+        
+        print(f"🔍 Réponse de l'annulation: {response.status_code}")
+        if response.status_code == 200:
+            print(f"🔍 Contenu de la réponse: {response.data}")
+            
+            # Vérifier que les remboursements ont été créés
+            refunds = RefundRequest.objects.filter(registration__event=event)
+            print(f"🔍 Remboursements créés: {refunds.count()}")
+            
+            for refund in refunds:
+                print(f"  - ID: {refund.id}, Montant: {refund.refund_amount}€, Raison: {refund.reason}")
+            
+            # Vérifier que l'événement est annulé
+            event.refresh_from_db()
+            print(f"🔍 Statut de l'événement après annulation: {event.status}")
+            
         else:
-            print(f"      ❌ Pas de données dans la réponse")
-        
-    except User.DoesNotExist:
-        print("   ❌ Super Admin 'window7' non trouvé")
-    except UserProfile.DoesNotExist:
-        print("   ❌ Profil Super Admin non trouvé")
+            print(f"❌ Erreur lors de l'annulation: {response.data}")
+            
     except Exception as e:
-        print(f"   ❌ Erreur: {e}")
-    
-    print("\n🎯 Test terminé!")
+        print(f"❌ Erreur lors du test: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == '__main__':
-    test_refunds_api()
+    test_automatic_refund_creation()

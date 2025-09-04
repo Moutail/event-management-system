@@ -327,6 +327,12 @@ const eventSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    clearRegistrationError: (state) => {
+      console.log('🔍 [REDUX] clearRegistrationError reducer appelé');
+      console.log('🔍 [REDUX] État avant clearRegistrationError:', state.registrationError);
+      state.registrationError = null;
+      console.log('🔍 [REDUX] État après clearRegistrationError:', state.registrationError);
+    },
     setCurrentEvent: (state, action) => {
       state.currentEvent = action.payload;
     },
@@ -592,6 +598,7 @@ const eventSlice = createSlice({
 
 export const { 
   clearError, 
+  clearRegistrationError,
   setCurrentEvent, 
   clearCurrentEvent, 
   setFilters, 

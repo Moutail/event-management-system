@@ -38,7 +38,8 @@ import {
   History as HistoryIcon,
   Warning as WarningIcon,
   Delete as DeleteIcon,
-  Block as BlockIcon
+  Block as BlockIcon,
+  Download as DownloadIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 
@@ -112,6 +113,114 @@ const EventDetailModal = ({ open, onClose, eventId, onEventAction }) => {
       setError('Erreur lors de la suppression de l\'événement');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      console.log('🔍 Début export CSV pour événement:', eventId);
+      setError(null);
+      
+      const response = await api.get(`/api/admin/events/${eventId}/export_csv/`, {
+        responseType: 'blob'
+      });
+      
+      console.log('✅ Export CSV réussi:', response);
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `inscriptions_event_${eventId}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      console.log('📁 Fichier CSV téléchargé avec succès');
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'export CSV:', error);
+      
+      let errorMessage = 'Erreur lors de l\'export CSV';
+      
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        console.log(`📊 Réponse erreur CSV: Status ${status}`, data);
+        
+        if (status === 401) {
+          errorMessage = 'Erreur d\'authentification. Veuillez vous reconnecter.';
+        } else if (status === 403) {
+          errorMessage = 'Accès refusé. Vérifiez vos permissions.';
+        } else if (status === 404) {
+          errorMessage = 'Événement non trouvé. Vérifiez l\'ID.';
+        } else if (status === 500) {
+          errorMessage = 'Erreur serveur. Vérifiez les logs backend.';
+        } else {
+          errorMessage = `Erreur ${status}: ${data.error || data.detail || 'Erreur inconnue'}`;
+        }
+      } else if (error.request) {
+        errorMessage = 'Aucune réponse du serveur. Vérifiez que le backend fonctionne.';
+      } else {
+        errorMessage = `Erreur: ${error.message}`;
+      }
+      
+      setError(errorMessage);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      console.log('🔍 Début export Excel pour événement:', eventId);
+      setError(null);
+      
+      const response = await api.get(`/api/admin/events/${eventId}/export_excel/`, {
+        responseType: 'blob'
+      });
+      
+      console.log('✅ Export Excel réussi:', response);
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `inscriptions_event_${eventId}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      console.log('📁 Fichier Excel téléchargé avec succès');
+      
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'export Excel:', error);
+      
+      let errorMessage = 'Erreur lors de l\'export Excel';
+      
+      if (error.response) {
+        const status = error.response.status;
+        const data = error.response.data;
+        
+        console.log(`📊 Réponse erreur Excel: Status ${status}`, data);
+        
+        if (status === 401) {
+          errorMessage = 'Erreur d\'authentification. Veuillez vous reconnecter.';
+        } else if (status === 403) {
+          errorMessage = 'Accès refusé. Vérifiez vos permissions.';
+        } else if (status === 404) {
+          errorMessage = 'Événement non trouvé. Vérifiez l\'ID.';
+        } else if (status === 500) {
+          errorMessage = 'Erreur serveur. Vérifiez les logs backend.';
+        } else {
+          errorMessage = `Erreur ${status}: ${data.error || data.detail || 'Erreur inconnue'}`;
+        }
+      } else if (error.request) {
+        errorMessage = 'Aucune réponse du serveur. Vérifiez que le backend fonctionne.';
+      } else {
+        errorMessage = `Erreur: ${error.message}`;
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -310,6 +419,28 @@ const EventDetailModal = ({ open, onClose, eventId, onEventAction }) => {
                 <CardHeader
                   title="Statistiques des Inscriptions"
                   avatar={<PeopleIcon />}
+                  action={
+                    <Box display="flex" gap={1}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={handleExportCSV}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? 'Export...' : 'CSV'}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={handleExportExcel}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? 'Export...' : 'Excel'}
+                      </Button>
+                    </Box>
+                  }
                 />
                 <CardContent>
                   <List dense>
@@ -354,6 +485,99 @@ const EventDetailModal = ({ open, onClose, eventId, onEventAction }) => {
               </Card>
             </Grid>
 
+            {/* Liste des Participants */}
+            <Grid item xs={12}>
+              <Card>
+                <CardHeader
+                  title={`Participants (${eventDetails.registrations_stats.total})`}
+                  avatar={<PeopleIcon />}
+                  action={
+                    <Box display="flex" gap={1}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={handleExportCSV}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? 'Export...' : 'CSV'}
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<DownloadIcon />}
+                        onClick={handleExportExcel}
+                        disabled={actionLoading}
+                      >
+                        {actionLoading ? 'Export...' : 'Excel'}
+                      </Button>
+                    </Box>
+                  }
+                />
+                <CardContent>
+                  {eventDetails.registrations && eventDetails.registrations.length > 0 ? (
+                    <List dense>
+                      {eventDetails.registrations.map((registration) => (
+                        <ListItem key={registration.id} divider>
+                          <ListItemIcon>
+                            <Avatar sx={{ width: 32, height: 32 }}>
+                              {registration.user.first_name ? registration.user.first_name[0] : registration.user.username[0]}
+                            </Avatar>
+                          </ListItemIcon>
+                          <ListItemText
+                            primary={`${registration.user.first_name || ''} ${registration.user.last_name || ''}`.trim() || registration.user.username}
+                            secondary={
+                              <Box>
+                                <Typography variant="body2" component="span">
+                                  {registration.user.email} • {registration.status} • ${registration.price_paid || 0}
+                                </Typography>
+                                {registration.ticket_type && (
+                                  <Typography variant="body2" component="span" display="block">
+                                    Type: {registration.ticket_type.name}
+                                  </Typography>
+                                )}
+                                <Typography variant="body2" component="span" display="block">
+                                  Inscrit le: {new Date(registration.registered_at).toLocaleDateString('fr-FR')}
+                                </Typography>
+                              </Box>
+                            }
+                          />
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Chip
+                              label={registration.status}
+                              size="small"
+                              color={
+                                registration.status === 'confirmed' ? 'success' :
+                                registration.status === 'pending' ? 'warning' :
+                                registration.status === 'cancelled' ? 'error' :
+                                'default'
+                              }
+                            />
+                            {registration.refund_request && (
+                              <Chip
+                                label={`Remboursement: ${registration.refund_request.status}`}
+                                size="small"
+                                color={
+                                  registration.refund_request.status === 'approved' ? 'success' :
+                                  registration.refund_request.status === 'pending' ? 'warning' :
+                                  registration.refund_request.status === 'rejected' ? 'error' :
+                                  'default'
+                                }
+                              />
+                            )}
+                          </Box>
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Typography variant="body2" color="textSecondary" align="center">
+                      Aucun participant inscrit à cet événement
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+
             {/* Demandes de remboursement */}
             <Grid item xs={12} md={6}>
               <Card>
@@ -371,7 +595,7 @@ const EventDetailModal = ({ open, onClose, eventId, onEventAction }) => {
                           </ListItemIcon>
                           <ListItemText
                             primary={`$${refund.refund_amount} - ${refund.user.username}`}
-                            secondary={`Statut: ${refund.status}`}
+                            secondary={`Statut: ${refund.status} - ${refund.reason || 'Aucune raison'}`}
                           />
                         </ListItem>
                       ))}
@@ -383,6 +607,13 @@ const EventDetailModal = ({ open, onClose, eventId, onEventAction }) => {
                           />
                         </ListItem>
                       )}
+                      <ListItem>
+                        <ListItemText
+                          primary={`Total: ${eventDetails.refund_requests.length} demande(s)`}
+                          secondary={`Montant total: $${eventDetails.refund_requests.reduce((sum, refund) => sum + refund.refund_amount, 0).toFixed(2)}`}
+                          color="primary"
+                        />
+                      </ListItem>
                     </List>
                   ) : (
                     <Typography variant="body2" color="textSecondary">

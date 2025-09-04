@@ -24,7 +24,8 @@ import {
   Settings as SettingsIcon,
   Notifications as NotificationsIcon,
   AccountCircle as AccountIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  Psychology as AIIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 
@@ -51,8 +52,9 @@ const SuperAdminNavigation = ({
       case 2: return <WarningIcon />;
       case 3: return <MoneyIcon />;
       case 4: return <AnalyticsIcon />;
-      case 5: return <CategoryIcon />;
-      case 6: return <SettingsIcon />;
+      case 5: return <AIIcon />;
+      case 6: return <CategoryIcon />;
+      case 7: return <SettingsIcon />;
       default: return <DashboardIcon />;
     }
   };
@@ -64,8 +66,9 @@ const SuperAdminNavigation = ({
       case 2: return 'Modération';
       case 3: return 'Remboursements';
       case 4: return 'Analytics';
-      case 5: return 'Catégories & Tags';
-      case 6: return 'Système';
+      case 5: return 'IA Prédictive';
+      case 6: return 'Catégories & Tags';
+      case 7: return 'Système';
       default: return 'Dashboard';
     }
   };
@@ -90,7 +93,7 @@ const SuperAdminNavigation = ({
 
         {/* Navigation tabs */}
         <Box display="flex" gap={1} sx={{ mr: 3 }}>
-          {[0, 1, 2, 3, 4, 5, 6].map((tabIndex) => {
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((tabIndex) => {
             const badge = getTabBadge(tabIndex);
             return (
               <Button

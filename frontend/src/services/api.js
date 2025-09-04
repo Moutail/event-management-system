@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Configuration de base d'Axios
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -10,41 +10,129 @@ const api = axios.create({
   },
 });
 
+// Fonction pour récupérer le token de la session actuelle
+const getCurrentSessionToken = () => {
+  console.log('🔍 [API] getCurrentSessionToken() appelé');
+  const currentSessionId = sessionStorage.getItem('current_session_id');
+  console.log('🔍 [API] current_session_id récupéré:', currentSessionId);
+  
+  if (!currentSessionId) {
+    console.log('❌ [API] Aucun current_session_id trouvé');
+    return null;
+  }
+  
+  const sessionData = localStorage.getItem(`auth_session_${currentSessionId}`);
+  console.log('🔍 [API] sessionData récupéré:', sessionData ? 'OUI' : 'NON');
+  
+  if (!sessionData) {
+    console.log('❌ [API] Aucune sessionData trouvée pour:', currentSessionId);
+    return null;
+  }
+  
+  try {
+    const parsed = JSON.parse(sessionData);
+    console.log('✅ [API] Token récupéré pour session:', {
+      sessionId: currentSessionId,
+      user: parsed.user?.username,
+      hasAccessToken: !!parsed.access
+    });
+    return parsed.access;
+  } catch (error) {
+    console.error('❌ [API] Erreur parsing sessionData:', error);
+    return null;
+  }
+};
+
 // Intercepteur pour ajouter le token d'authentification
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
+    console.log('📤 [API] Requête envoyée vers:', config.url);
+    const token = getCurrentSessionToken();
     if (token) {
+      console.log('🔑 [API] Token ajouté au header pour:', config.url);
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      console.log('⚠️ [API] Aucun token trouvé pour:', config.url);
     }
     return config;
   },
   (error) => {
+    console.error('❌ [API] Erreur interceptor request:', error);
     return Promise.reject(error);
   }
 );
 
 // Intercepteur pour gérer les erreurs et le refresh token
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('✅ [API] Réponse reçue de:', response.config.url, 'Status:', response.status);
+    return response;
+  },
   async (error) => {
+    console.log('❌ [API] Erreur réponse de:', error.config?.url, 'Status:', error.response?.status);
+    
     const originalRequest = error.config;
-
+    
     // Éviter les boucles infinies - version simplifiée
     if (error.response?.status === 401 && !originalRequest._retry) {
+      console.log('🔄 [API] Tentative de refresh token pour:', originalRequest.url);
       originalRequest._retry = true;
       
-      // Si c'est une erreur 401, nettoyer les tokens et rediriger
-      if (!originalRequest.url.includes('/token/') && !originalRequest.url.includes('/auth/')) {
-        console.log('Token expiré, nettoyage et redirection');
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        
-        // Éviter la redirection en boucle
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+      // Si c'est une erreur 401 sur /auth/user/, nettoyer la session actuelle
+      if (originalRequest.url.includes('/auth/user/')) {
+        console.log('🔄 [API] Refresh token pour /auth/user/');
+        try {
+          const currentSessionId = sessionStorage.getItem('current_session_id');
+          console.log('🔍 [API] SessionId pour refresh:', currentSessionId);
+          
+          if (currentSessionId) {
+            const sessionData = localStorage.getItem(`auth_session_${currentSessionId}`);
+            console.log('🔍 [API] SessionData pour refresh:', sessionData ? 'OUI' : 'NON');
+            
+            if (sessionData) {
+              const parsedSession = JSON.parse(sessionData);
+              const refresh = parsedSession.refresh;
+              console.log('🔍 [API] Refresh token trouvé:', refresh ? 'OUI' : 'NON');
+              
+              if (refresh) {
+                console.log('🔄 [API] Appel API refreshToken');
+                const refreshResponse = await api.post('/auth/refresh/', { refresh });
+                console.log('✅ [API] Nouveau access token reçu');
+                
+                parsedSession.access = refreshResponse.data.access;
+                localStorage.setItem(`auth_session_${currentSessionId}`, JSON.stringify(parsedSession));
+                console.log('💾 [API] Session mise à jour avec nouveau token');
+                
+                originalRequest.headers.Authorization = `Bearer ${refreshResponse.data.access}`;
+                console.log('🔄 [API] Retry de la requête originale avec nouveau token');
+                return api(originalRequest);
+              }
+            }
+          }
+        } catch (refreshError) {
+          console.error('❌ [API] Erreur refresh token:', refreshError);
         }
       }
+      
+      // Pour les autres endpoints, rediriger vers login
+      if (!originalRequest.url.includes('/auth/token/')) {
+        console.log('🗑️ [API] Suppression session après échec refresh');
+        const currentSessionId = sessionStorage.getItem('current_session_id');
+        if (currentSessionId) {
+          localStorage.removeItem(`auth_session_${currentSessionId}`);
+          sessionStorage.removeItem('current_session_id');
+          console.log('✅ [API] Session supprimée');
+        }
+        
+        // Éviter la redirection en boucle et les appels répétés
+        if (window.location.pathname !== '/login') {
+          // Utiliser replace pour éviter l'historique de navigation
+          window.location.replace('/login');
+        }
+      }
+      
+      // Retourner une erreur pour arrêter la chaîne de promesses
+      return Promise.reject(new Error('Authentication failed'));
     }
 
     return Promise.reject(error);
@@ -53,9 +141,9 @@ api.interceptors.response.use(
 
 // Service d'authentification
 export const authAPI = {
-  login: (credentials) => api.post('/token/', credentials),
+  login: (credentials) => api.post('/auth/token/', credentials),
   register: (userData) => api.post('/auth/register/', userData),
-  refreshToken: (refresh) => api.post('/token/refresh/', { refresh }),
+  refreshToken: (refresh) => api.post('/auth/token/refresh/', { refresh }),
   getCurrentUser: () => api.get('/auth/user/'),
   logout: () => api.post('/auth/logout/'),
   changePassword: (oldPassword, newPassword) =>
@@ -73,8 +161,10 @@ export const eventAPI = {
   getOngoingEvents: () => api.get('/events/ongoing/'),
   getMyEvents: () => api.get('/events/my_events/'),
   getEventStatistics: () => api.get('/events/statistics/'),
-  getTicketTypes: (eventId) => api.get(`/events/${eventId}/ticket-types/`),
-  createTicketType: (eventId, data) => api.post(`/events/${eventId}/ticket-types/`, data),
+  getTicketTypes: (eventId) => api.get(`/events/${eventId}/ticket_types/`),
+  createTicketType: (eventId, data) => api.post(`/events/${eventId}/ticket_types/`, data),
+  getSessionTypes: (eventId) => api.get(`/events/${eventId}/session_types/`),
+  createSessionType: (eventId, data) => api.post(`/events/${eventId}/session_types/`, data),
   exportRegistrationsCSV: (eventId) => api.get(`/events/${eventId}/export_registrations_csv/`, { responseType: 'blob' }),
   exportRegistrationsExcel: (eventId) => api.get(`/events/${eventId}/export_registrations_excel/`, { responseType: 'blob' }),
   exportRegistrationsPDF: (eventId) => api.get(`/events/${eventId}/export_registrations_pdf/`, { responseType: 'blob' }),
@@ -294,9 +384,20 @@ export const getImageUrl = (imagePath) => {
     return imagePath;
   }
   
-  // Sinon, construire l'URL avec l'API
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-  return `${API_BASE_URL}${imagePath}`;
+  // Construire l'URL correcte pour les images (pas via l'API)
+  const BASE_URL = 'http://localhost:8001';
+  
+  // Si le chemin commence par /media/, l'utiliser directement
+  if (imagePath.startsWith('/media/')) {
+    return `${BASE_URL}${imagePath}`;
+  }
+  
+  // Sinon, ajouter /media/ si nécessaire
+  if (!imagePath.startsWith('/')) {
+    imagePath = `/${imagePath}`;
+  }
+  
+  return `${BASE_URL}${imagePath}`;
 };
 
 export default api; 

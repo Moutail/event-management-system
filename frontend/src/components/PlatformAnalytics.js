@@ -6,10 +6,6 @@ import {
   CardHeader,
   Grid,
   Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Button,
   CircularProgress,
   Alert,
@@ -37,11 +33,10 @@ const PlatformAnalytics = () => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [period, setPeriod] = useState('month');
 
   useEffect(() => {
     loadAnalytics();
-  }, [period]);
+  }, []);
 
   const loadAnalytics = async () => {
     try {
@@ -49,7 +44,7 @@ const PlatformAnalytics = () => {
       setError(null);
       
       // Utiliser l'API réelle
-      const response = await api.get(`/admin/analytics_advanced/?period=${period}`);
+      const response = await api.get(`/admin/analytics/`);
       setAnalytics(response.data);
     } catch (error) {
       console.error('Erreur lors du chargement des analytics:', error);
@@ -57,16 +52,28 @@ const PlatformAnalytics = () => {
       
       // En cas d'erreur, utiliser des données par défaut
       setAnalytics({
-        total_users: 0,
-        total_events: 0,
-        total_revenue: 0,
-        active_users: 0,
-        new_users_this_month: 0,
-        events_this_month: 0,
-        revenue_this_month: 0,
-        top_events: [],
-        user_growth: [],
-        revenue_growth: []
+        summary: {
+          total_platform_users: 0,
+          active_organizers: 0,
+          published_events: 0,
+          this_month_revenue: 0,
+          total_events_this_month: 0,
+          new_users_this_month: 0
+        },
+        growth_metrics: {
+          users_growth: 0,
+          events_growth: 0,
+          revenue_growth: 0
+        },
+        daily_stats: [],
+        top_revenue_events: [],
+        top_organizers: [],
+        refund_stats: {
+          pending_refunds: 0,
+          approved_refunds: 0,
+          rejected_refunds: 0,
+          total_refund_amount: 0
+        }
       });
     } finally {
       setLoading(false);
@@ -111,28 +118,14 @@ const PlatformAnalytics = () => {
         <Typography variant="h5" component="h2">
           Analytics de la Plateforme
         </Typography>
-        <Box display="flex" gap={2} alignItems="center">
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Période</InputLabel>
-            <Select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              label="Période"
-            >
-              <MenuItem value="week">7 jours</MenuItem>
-              <MenuItem value="month">30 jours</MenuItem>
-              <MenuItem value="year">1 an</MenuItem>
-            </Select>
-          </FormControl>
-          <Button
-            startIcon={<RefreshIcon />}
-            onClick={loadAnalytics}
-            variant="contained"
-            size="small"
-          >
-            Actualiser
-          </Button>
-        </Box>
+        <Button
+          startIcon={<RefreshIcon />}
+          onClick={loadAnalytics}
+          variant="contained"
+          size="small"
+        >
+          Actualiser
+        </Button>
       </Box>
 
       {/* Résumé des métriques */}
@@ -248,7 +241,7 @@ const PlatformAnalytics = () => {
                           <TableCell>{day.new_registrations}</TableCell>
                           <TableCell>
                             <Typography variant="body2" color="success.main">
-                              {day.revenue}€
+                              ${day.revenue}
                             </Typography>
                           </TableCell>
                         </TableRow>
@@ -302,6 +295,160 @@ const PlatformAnalytics = () => {
         </Grid>
       </Grid>
 
+      {/* Métriques de croissance */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardHeader
+              title="Croissance des Utilisateurs"
+              titleTypographyProps={{ variant: 'h6' }}
+              avatar={<TrendingIcon color="primary" />}
+            />
+            <CardContent>
+              <Typography variant="h4" color="primary" gutterBottom>
+                {analytics.growth_metrics?.users_growth || 0}%
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Croissance sur 30 jours
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardHeader
+              title="Croissance des Événements"
+              titleTypographyProps={{ variant: 'h6' }}
+              avatar={<TrendingIcon color="secondary" />}
+            />
+            <CardContent>
+              <Typography variant="h4" color="secondary" gutterBottom>
+                {analytics.growth_metrics?.events_growth || 0}%
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Croissance sur 30 jours
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Card>
+            <CardHeader
+              title="Croissance des Revenus"
+              titleTypographyProps={{ variant: 'h6' }}
+              avatar={<TrendingIcon color="success" />}
+            />
+            <CardContent>
+              <Typography variant="h4" color="success" gutterBottom>
+                {analytics.growth_metrics?.revenue_growth || 0}%
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                Croissance sur 30 jours
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Statistiques des remboursements */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardHeader
+              title="Statistiques des Remboursements"
+              titleTypographyProps={{ variant: 'h6' }}
+            />
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Box textAlign="center">
+                    <Typography variant="h6" color="warning.main">
+                      {analytics.refund_stats?.pending_refunds || 0}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      En attente
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                  <Box textAlign="center">
+                    <Typography variant="h6" color="success.main">
+                      {analytics.refund_stats?.approved_refunds || 0}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Approuvés
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                  <Box textAlign="center">
+                    <Typography variant="h6" color="error.main">
+                      {analytics.refund_stats?.rejected_refunds || 0}
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary">
+                      Rejetés
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid item xs={6}>
+                                              <Box textAlign="center">
+                              <Typography variant="h6" color="info.main">
+                                ${analytics.refund_stats?.total_refund_amount || 0}
+                              </Typography>
+                              <Typography variant="body2" color="textSecondary">
+                                Montant total
+                              </Typography>
+                            </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card>
+            <CardHeader
+              title="Top Organisateurs"
+              titleTypographyProps={{ variant: 'h6' }}
+            />
+            <CardContent>
+              {analytics.top_organizers && analytics.top_organizers.length > 0 ? (
+                <Box>
+                  {analytics.top_organizers.map((organizer, index) => (
+                    <Box key={organizer.id} mb={2}>
+                      <Box display="flex" justifyContent="space-between" alignItems="center">
+                        <Box>
+                          <Typography variant="subtitle2">
+                            {organizer.full_name || organizer.username}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            {organizer.event_count} événement(s)
+                          </Typography>
+                        </Box>
+                        <Typography variant="h6" color="success.main">
+                          ${organizer.total_revenue}
+                        </Typography>
+                      </Box>
+                      <LinearProgress
+                        variant="determinate"
+                        value={(organizer.total_revenue / Math.max(...analytics.top_organizers.map(o => o.total_revenue), 1)) * 100}
+                        sx={{ height: 6, borderRadius: 3 }}
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  Aucun organisateur avec des revenus disponible
+                </Typography>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
       {/* Top événements par revenus */}
       <Card>
         <CardHeader
@@ -342,7 +489,7 @@ const PlatformAnalytics = () => {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="success.main" fontWeight="bold">
-                          {event.total_revenue}€
+                          ${event.total_revenue}
                         </Typography>
                       </TableCell>
                     </TableRow>

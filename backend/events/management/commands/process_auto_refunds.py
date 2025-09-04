@@ -123,29 +123,46 @@ class Command(BaseCommand):
             event = registration.event
             
             subject = f"Remboursement traité automatiquement - {event.title}"
-            context = {
-                'user': registration.user,
-                'event': event,
-                'refund_request': refund_request,
-                'refund_amount': refund_request.refund_amount
-            }
-            
-            text_body = render_to_string('emails/refund_confirmation.txt', context)
-            html_body = render_to_string('emails/refund_confirmation.html', context)
+            # 🎯 CORRECTION : Gérer les utilisateurs ET les invités
+            if registration.user:
+                # Utilisateur connecté
+                recipient_email = registration.user.email
+                context = {
+                    'user': registration.user,
+                    'event': event,
+                    'refund_request': refund_request,
+                    'refund_amount': refund_request.refund_amount
+                }
+                text_body = render_to_string('emails/refund_confirmation.txt', context)
+                html_body = render_to_string('emails/refund_confirmation.html', context)
+            else:
+                # Invité
+                recipient_email = registration.guest_email
+                context = {
+                    'guest_full_name': registration.guest_full_name,
+                    'event': event,
+                    'refund_request': refund_request,
+                    'refund_amount': refund_request.refund_amount
+                }
+                text_body = render_to_string('emails/guest_refund_confirmation.txt', context)
+                html_body = render_to_string('emails/guest_refund_confirmation.html', context)
             
             msg = EmailMultiAlternatives(
                 subject, 
                 text_body, 
                 settings.DEFAULT_FROM_EMAIL, 
-                [registration.user.email]
+                [recipient_email]
             )
             msg.attach_alternative(html_body, 'text/html')
             msg.send(fail_silently=False)
             
-            print(f"📧 Email envoyé à {registration.user.email}")
+            print(f"📧 Email envoyé à {recipient_email}")
             
         except Exception as e:
             print(f"❌ Erreur envoi email pour {refund_request}: {e}")
+
+
+
 
 
 

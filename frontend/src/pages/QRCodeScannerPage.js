@@ -107,6 +107,8 @@ const QRCodeScannerPage = () => {
             {result.user && <Typography variant="body2">Utilisateur: {result.user.username} ({result.user.email})</Typography>}
             {result.event && <Typography variant="body2">Événement: {result.event.title} (ID {result.event.id})</Typography>}
             <Typography variant="body2">Statut: {result.status}</Typography>
+            {result.session_type && <Typography variant="body2">Session: {result.session_type}</Typography>}
+            {result.ticket_type && <Typography variant="body2">Type de billet: {result.ticket_type}</Typography>}
           </CardContent>
         </Card>
       )}
