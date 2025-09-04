@@ -210,9 +210,9 @@ TWILIO_AUTH_TOKEN = 'fcd47dcc072d971b7413ffc85d104f40'  # VRAI AUTH TOKEN
 TWILIO_FROM_NUMBER = '+16013657741'  # NOUVEAU NUMÉRO TWILIO ACHETÉ
 
 # ===== CONFIGURATION CELERY =====
-# 🎯 TEMPORAIRE : Utiliser SQLite au lieu de Redis pour les tests
-CELERY_BROKER_URL = 'db+sqlite:///celery_broker.db'
-CELERY_RESULT_BACKEND = 'db+sqlite:///celery_results.db'
+# 🎯 Configuration simple avec base de données Django
+CELERY_BROKER_URL = 'memory://'
+CELERY_RESULT_BACKEND = 'django-db'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -224,7 +224,7 @@ CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000
 
-# 🎯 NOUVEAU : Configuration Celery Beat pour les tâches périodiques
+# 🎯 Configuration Celery Beat pour les tâches périodiques
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 # 🎯 NOUVEAU : URL de base pour les médias (QR-codes)

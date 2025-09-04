@@ -1068,6 +1068,18 @@ class CustomReminder(models.Model):
         self.status = 'sent'
         self.sent_at = timezone.now()
         self.save()
+    
+    def save(self, *args, **kwargs):
+        """Override save pour gérer automatiquement le statut"""
+        # Si une heure est programmée et que le statut est draft
+        if self.scheduled_at and self.status == 'draft':
+            from django.utils import timezone
+            if self.scheduled_at > timezone.now():
+                # Si l'heure est dans le futur, passer automatiquement en statut 'scheduled'
+                self.status = 'scheduled'
+                print(f"🔍 DEBUG: Statut automatiquement changé de 'draft' à 'scheduled' pour le rappel {self.id}")
+        
+        super().save(*args, **kwargs)
 
 
 class CustomReminderRecipient(models.Model):

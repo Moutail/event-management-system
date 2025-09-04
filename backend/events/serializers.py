@@ -1081,12 +1081,26 @@ class CustomReminderSerializer(serializers.ModelSerializer):
         validated_data['total_recipients'] = 0
         print(f"🔍 DEBUG: total_recipients ajouté: {validated_data['total_recipients']}")
         
+        # 🎯 NOUVEAU: Vérifier si une heure est programmée
+        scheduled_at = validated_data.get('scheduled_at')
+        if scheduled_at:
+            from django.utils import timezone
+            if scheduled_at > timezone.now():
+                # Si l'heure est dans le futur, passer automatiquement en statut 'scheduled'
+                validated_data['status'] = 'scheduled'
+                print(f"🔍 DEBUG: Heure programmée détectée: {scheduled_at}")
+                print(f"🔍 DEBUG: Statut automatiquement défini à 'scheduled'")
+            else:
+                print(f"🔍 DEBUG: Heure programmée dans le passé: {scheduled_at}")
+                print(f"🔍 DEBUG: Statut reste 'draft'")
+        
         print(f"🔍 DEBUG: validated_data final: {validated_data}")
         
         try:
             result = super().create(validated_data)
             print(f"🔍 DEBUG: CustomReminder créé avec succès: {result}")
             print(f"🔍 DEBUG: ID du rappel créé: {result.id}")
+            print(f"🔍 DEBUG: Statut final: {result.status}")
             return result
         except Exception as e:
             print(f"🔍 DEBUG: ERREUR lors de la création: {e}")
