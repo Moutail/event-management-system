@@ -253,23 +253,49 @@ def check_scheduled_reminders():
         print(f"🔍 DEBUG: Heure actuelle: {now}")
         
         # Récupérer les rappels programmés dont l'heure est arrivée
+        # On ajoute une marge de 5 minutes pour éviter les problèmes de timing
+        from datetime import timedelta
+        time_threshold = now + timedelta(minutes=5)
+        
         reminders_to_send = CustomReminder.objects.filter(
             status='scheduled',
-            scheduled_at__lte=now
-        )
+            scheduled_at__lte=time_threshold
+        ).order_by('scheduled_at')
         
         print(f"🔍 DEBUG: Rappels à envoyer: {reminders_to_send.count()}")
         
+        sent_count = 0
         for reminder in reminders_to_send:
-            print(f"🔍 DEBUG: Envoi du rappel {reminder.id}: {reminder.title}")
-            # Programmer l'envoi du rappel
-            send_reminder_task.delay(reminder.id)
+            try:
+                print(f"🔍 DEBUG: Traitement du rappel {reminder.id}: {reminder.title}")
+                print(f"🔍 DEBUG: Heure programmée: {reminder.scheduled_at}")
+                
+                # Vérifier si le rappel a des destinataires
+                recipients = reminder.get_recipients()
+                if not recipients.exists():
+                    print(f"🔍 DEBUG: ⚠️ Aucun destinataire pour le rappel {reminder.id}")
+                    reminder.status = 'failed'
+                    reminder.save()
+                    continue
+                
+                # Envoyer le rappel directement (pas besoin de delay car l'heure est déjà arrivée)
+                result = send_reminder_task(reminder.id)
+                print(f"🔍 DEBUG: ✅ Rappel {reminder.id} envoyé: {result}")
+                sent_count += 1
+                
+            except Exception as e:
+                print(f"🔍 DEBUG: ❌ Erreur envoi rappel {reminder.id}: {e}")
+                reminder.status = 'failed'
+                reminder.save()
         
         print(f"🔍 DEBUG: ==========================================")
+        print(f"🔍 DEBUG: Rappels envoyés: {sent_count}/{reminders_to_send.count()}")
         
-        return f"Vérifié {reminders_to_send.count()} rappels"
+        return f"Vérifié {reminders_to_send.count()} rappels, envoyé {sent_count}"
         
     except Exception as e:
         print(f"🔍 DEBUG: ❌ Erreur vérification rappels: {e}")
+        import traceback
+        traceback.print_exc()
         return f"Erreur: {str(e)}"
 
