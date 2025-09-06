@@ -107,7 +107,7 @@ const RegistrationModal = ({ open, onClose, event }) => {
           // Charger les types de billets
           const ticketsRes = await eventAPI.getTicketTypes(event.id);
           console.log('🔍 [LOAD_DATA] Types de billets récupérés:', ticketsRes.data);
-          console.log('🔍 [LOAD_DATA] Détail des types de billets:', ticketsRes.data?.map(t => ({ id: t.id, name: t.name, type: typeof t.id })));
+          console.log('🔍 [LOAD_DATA] Détail des types de billets:', ticketsRes.data?.map(t => ({ id: t.id, name: t.name, type: typeof t.id, available_quantity: t.available_quantity, sold_count: t.sold_count })));
           setTicketTypes(ticketsRes.data || []);
           
           // Charger les types de sessions
@@ -118,8 +118,78 @@ const RegistrationModal = ({ open, onClose, event }) => {
         } catch (_) {}
       }
     };
-    if (open) loadData();
+    if (open) {
+      loadData();
+      // 🎯 NOUVEAU : Rafraîchir immédiatement les quantités à l'ouverture
+      setTimeout(() => {
+        refreshTicketTypes();
+      }, 500);
+    }
   }, [open, event]);
+
+  // 🎯 NOUVEAU : Rafraîchissement automatique périodique des quantités
+  useEffect(() => {
+    if (!open || !event?.id) return;
+
+    const refreshInterval = setInterval(async () => {
+      try {
+        console.log('🔄 [AUTO_REFRESH] Rafraîchissement automatique des quantités...');
+        const ticketsRes = await eventAPI.getTicketTypes(event.id);
+        console.log('🔄 [AUTO_REFRESH] Données reçues:', ticketsRes.data?.map(t => ({ 
+          name: t.name, 
+          available_quantity: t.available_quantity, 
+          sold_count: t.sold_count 
+        })));
+        setTicketTypes(ticketsRes.data || []);
+      } catch (error) {
+        console.error('❌ [AUTO_REFRESH] Erreur lors du rafraîchissement automatique:', error);
+      }
+    }, 10000); // Rafraîchir toutes les 10 secondes (plus fréquent)
+
+    return () => clearInterval(refreshInterval);
+  }, [open, event?.id]);
+
+  // 🎯 NOUVEAU : Rafraîchir les types de billets après une inscription réussie
+  const refreshTicketTypes = async () => {
+    if (event?.id) {
+      try {
+        console.log('🔄 [REFRESH] Rafraîchissement des types de billets...');
+        console.log('🔄 [REFRESH] État AVANT rafraîchissement:', ticketTypes.map(t => ({ 
+          id: t.id, 
+          name: t.name, 
+          available_quantity: t.available_quantity, 
+          sold_count: t.sold_count
+        })));
+        
+        const ticketsRes = await eventAPI.getTicketTypes(event.id);
+        console.log('🔄 [REFRESH] Données reçues de l\'API:', ticketsRes.data);
+        
+        const newTicketTypes = ticketsRes.data || [];
+        console.log('🔄 [REFRESH] Types de billets mis à jour:', newTicketTypes.map(t => ({ 
+          id: t.id, 
+          name: t.name, 
+          available_quantity: t.available_quantity, 
+          sold_count: t.sold_count,
+          is_available: t.is_available
+        })));
+        
+        setTicketTypes(newTicketTypes);
+        
+        // 🎯 CORRECTION : Utiliser newTicketTypes au lieu de ticketTypes
+        setTimeout(() => {
+          console.log('🔄 [REFRESH] État APRÈS rafraîchissement (délai):', newTicketTypes.map(t => ({ 
+            id: t.id, 
+            name: t.name, 
+            available_quantity: t.available_quantity, 
+            sold_count: t.sold_count
+          })));
+        }, 100);
+        
+      } catch (error) {
+        console.error('❌ [REFRESH] Erreur lors du rafraîchissement des types de billets:', error);
+      }
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -281,8 +351,14 @@ const RegistrationModal = ({ open, onClose, event }) => {
         await dispatch(registerForEvent(payload)).unwrap();
         console.log('🔍 [SUBMIT] Inscription gratuite réussie');
 
-            // Reset and close
-            setFormData({ notes: '', special_requirements: '', ticket_type_id: null });
+        // 🎯 NOUVEAU : Rafraîchir les types de billets après inscription réussie
+        await refreshTicketTypes();
+        
+        // 🎯 NOUVEAU : Forcer un re-rendu du composant
+        setForceRender(prev => prev + 1);
+
+        // Reset and close
+        setFormData({ notes: '', special_requirements: '', ticket_type_id: null });
         // Rafraîchir les données de l'événement pour mettre à jour le compteur
         if (event?.id) {
           dispatch(fetchEventById(event.id));
@@ -408,8 +484,9 @@ const RegistrationModal = ({ open, onClose, event }) => {
 
           {/* 🎯 NOUVEAU : Masquer le champ Type de billet pour les événements gratuits */}
           {!event.is_free && (
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel id="ticket-type-label">Type de billet</InputLabel>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <FormControl fullWidth>
+                <InputLabel id="ticket-type-label">Type de billet</InputLabel>
               <Select
                 key={`ticket-select-${formData.ticket_type_id || 'default'}-${forceRender}`}
                 labelId="ticket-type-label"
@@ -489,25 +566,58 @@ const RegistrationModal = ({ open, onClose, event }) => {
               {ticketTypes.map(tt => {
                 const remaining = tt.available_quantity;
                 const isSoldOut = remaining === 0;
-                console.log('🔍 [MENU_ITEM] Création MenuItem pour:', { id: tt.id, name: tt.name, value: tt.id, type: typeof tt.id });
+                const isLowStock = remaining !== null && remaining !== undefined && remaining <= 5 && remaining > 0;
+                console.log('🔍 [MENU_ITEM] Création MenuItem pour:', { id: tt.id, name: tt.name, value: tt.id, type: typeof tt.id, remaining, isSoldOut, isLowStock });
                 return (
                 <MenuItem key={tt.id} value={tt.id} disabled={isSoldOut}>
-                   {tt.name} — {Number(tt.effective_price) > 0 ? (
-                    tt.has_discount ? (
-                      <>
-                        <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{formatPrice(Number(tt.price))}</span>
-                        <strong>{formatPrice(Number(tt.effective_price))}</strong>
-                      </>
-                    ) : (
-                      <>{formatPrice(Number(tt.effective_price))}</>
-                    )
-                  ) : 'Gratuit'}
-                  {remaining !== null && remaining !== undefined ? ` (restant: ${remaining})` : ''}
-                  {isSoldOut ? ' — Épuisé' : ''}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <Typography variant="body1" component="span">
+                        {tt.name}
+                      </Typography>
+                      <Typography variant="body2" component="span" sx={{ fontWeight: 'bold' }}>
+                        {Number(tt.effective_price) > 0 ? (
+                          tt.has_discount ? (
+                            <>
+                              <span style={{ textDecoration: 'line-through', marginRight: 6, color: 'text.secondary' }}>{formatPrice(Number(tt.price))}</span>
+                              <span style={{ color: 'success.main' }}>{formatPrice(Number(tt.effective_price))}</span>
+                            </>
+                          ) : (
+                            <>{formatPrice(Number(tt.effective_price))}</>
+                          )
+                        ) : (
+                          <span style={{ color: 'success.main', fontWeight: 'bold' }}>Gratuit</span>
+                        )}
+                      </Typography>
+                    </Box>
+                    {remaining !== null && remaining !== undefined && (
+                      <Typography 
+                        variant="caption" 
+                        component="span" 
+                        sx={{ 
+                          color: isSoldOut ? 'error.main' : isLowStock ? 'warning.main' : 'text.secondary',
+                          fontWeight: isSoldOut || isLowStock ? 'bold' : 'normal',
+                          mt: 0.5
+                        }}
+                      >
+                        {isSoldOut ? '❌ Épuisé' : isLowStock ? `⚠️ Plus que ${remaining} disponible${remaining > 1 ? 's' : ''}` : `✅ ${remaining} disponible${remaining > 1 ? 's' : ''}`}
+                      </Typography>
+                    )}
+                  </Box>
                 </MenuItem>
               )})}
             </Select>
-          </FormControl>
+              </FormControl>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={refreshTicketTypes}
+                sx={{ minWidth: 'auto', px: 1 }}
+                title="Rafraîchir les quantités"
+              >
+                🔄
+              </Button>
+            </Box>
           )}
 
           {/* Sélection du type de session si des sessions existent */}
@@ -819,6 +929,13 @@ const RegistrationModal = ({ open, onClose, event }) => {
               onPaid={async () => {
                 setFormData({ ticket_type_id: null, session_type_id: '' });
                 setPendingReg(null);
+                
+                // 🎯 NOUVEAU : Rafraîchir les types de billets après paiement réussi
+                await refreshTicketTypes();
+                
+                // 🎯 NOUVEAU : Forcer un re-rendu du composant
+                setForceRender(prev => prev + 1);
+                
                 // Rafraîchir les données de l'événement pour mettre à jour le compteur
                 if (event?.id) {
                   dispatch(fetchEventById(event.id));

@@ -28,7 +28,7 @@
                 <h3>📅 Détails de l'événement :</h3>
                 <ul>
                     <li><strong>Date :</strong> {{ event.start_date|date:"d/m/Y" }}</li>
-                    <li><strong>Heure :</strong> {{ event.start_time|time:"H:i" }}</li>
+                    <li><strong>Heure :</strong> {{ event.start_date|time:"H:i" }}</li>
                     <li><strong>Lieu :</strong> {{ event.location }}</li>
                 </ul>
             </div>

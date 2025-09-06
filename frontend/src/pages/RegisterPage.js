@@ -16,7 +16,7 @@ import {
 } from '@mui/material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
-import { register } from '../store/slices/authSlice';
+import { register, clearError } from '../store/slices/authSlice';
 import NotificationDialog from '../components/NotificationDialog';
 
 const RegisterPage = () => {
@@ -57,6 +57,11 @@ const RegisterPage = () => {
         ...errors,
         [name]: '',
       });
+    }
+    
+    // Nettoyer l'erreur globale d'inscription si l'utilisateur modifie le formulaire
+    if (error) {
+      dispatch(clearError());
     }
   };
 
@@ -106,9 +111,15 @@ const RegisterPage = () => {
       return;
     }
 
+    // Nettoyer les erreurs précédentes avant de soumettre
+    dispatch(clearError());
+
     try {
       const result = await dispatch(register(formData));
       if (register.fulfilled.match(result)) {
+        // Nettoyer l'erreur en cas de succès
+        dispatch(clearError());
+        
         // Rediriger selon le rôle
         if (formData.role === 'organizer') {
           // Afficher un message d'attente d'approbation
@@ -180,7 +191,17 @@ const RegisterPage = () => {
 
           {error && (
             <Alert severity="error" sx={{ mt: 2, width: '100%' }}>
-              {typeof error === 'string' ? error : error.detail || error.message || 'Une erreur est survenue'}
+              <Typography variant="body1" component="div">
+                <strong>❌ Erreur d'inscription :</strong>
+              </Typography>
+              <Typography variant="body2" component="div" sx={{ mt: 1 }}>
+                {typeof error === 'string' ? error : error.detail || error.message || 'Une erreur est survenue'}
+              </Typography>
+              {error && (error.includes('email') || error.includes('déjà utilisé') || error.includes('utilisateur')) && (
+                <Typography variant="body2" component="div" sx={{ mt: 1, fontStyle: 'italic' }}>
+                  💡 <strong>Solution :</strong> Modifiez l'email ou le nom d'utilisateur dans le formulaire ci-dessus.
+                </Typography>
+              )}
             </Alert>
           )}
 

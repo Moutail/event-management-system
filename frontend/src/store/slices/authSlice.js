@@ -59,8 +59,36 @@ export const register = createAsyncThunk(
       const response = await authAPI.register(userData);
       return response;
     } catch (error) {
-      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.response?.data || 'Erreur d\'inscription';
-      return rejectWithValue(typeof errorMessage === 'string' ? errorMessage : 'Erreur d\'inscription');
+      console.log('🔍 [AUTH_SLICE] Erreur register détaillée:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      // Priorité des messages d'erreur du backend
+      let errorMessage = 'Erreur d\'inscription';
+      
+      if (error.response?.data) {
+        // Si c'est un objet avec une propriété 'error'
+        if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        }
+        // Si c'est un objet avec une propriété 'detail'
+        else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        }
+        // Si c'est un objet avec une propriété 'message'
+        else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+        // Si c'est directement une string
+        else if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        }
+      }
+      
+      console.log('🔍 [AUTH_SLICE] Message d\'erreur final:', errorMessage);
+      return rejectWithValue(errorMessage);
     }
   }
 );

@@ -35,8 +35,9 @@
                     <li><strong>Date :</strong> {{ event.start_date|date:"j F Y à H:i" }}</li>
                     <li><strong>Lieu :</strong> {{ event.location }}</li>
                     <li><strong>Organisateur :</strong> {{ event.organizer.get_full_name|default:event.organizer.username|default:event.organizer }}</li>
-                    {% if event.price %}
-                    <li><strong>Prix :</strong> {{ event.price }}€</li>
+                    <li><strong>Prix facturé :</strong> {{ registration.price_paid|floatformat:2 }}€</li>
+                    {% if registration.ticket_type %}
+                    <li><strong>Type de billet :</strong> {{ registration.ticket_type.name }}</li>
                     {% endif %}
                 </ul>
             </div>

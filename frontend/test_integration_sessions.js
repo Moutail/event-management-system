@@ -151,3 +151,5 @@ console.log('   5. Vérifier que l\'inscription est créée avec la session');
 
 
 
+
+

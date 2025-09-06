@@ -508,16 +508,21 @@ class TicketType(models.Model):
         if self.quantity is None:
             return None
         
-        # Compter les inscriptions confirmées pour ce type de billet
-        confirmed_count = self.registrations.filter(
-            status__in=['confirmed', 'attended']
-        ).count()
-        
-        available = max(0, self.quantity - confirmed_count)
-        print(f"🔍 DEBUG: {self.name}.available_quantity - Max: {self.quantity}, Confirmées: {confirmed_count}, Disponibles: {available}")
+        # 🎯 CORRECTION : Utiliser sold_count au lieu de compter les inscriptions
+        # sold_count est mis à jour lors de la confirmation de paiement
+        available = max(0, self.quantity - self.sold_count)
+        print(f"🔍 DEBUG: {self.name}.available_quantity - Max: {self.quantity}, Vendus: {self.sold_count}, Disponibles: {available}")
         
         return available
 
+    @property
+    def is_available(self) -> bool:
+        """Vérifie si le billet est encore disponible"""
+        if self.quantity is None:
+            return True  # Quantité illimitée
+        
+        return self.available_quantity > 0
+    
     @property
     def has_discount(self) -> bool:
         if not self.is_discount_active:

@@ -297,17 +297,23 @@ class EventSerializer(serializers.ModelSerializer):
 
 class TicketTypeListSerializer(serializers.ModelSerializer):
     """Sérialiseur simplifié pour la liste des types de billets"""
+    available_quantity = serializers.IntegerField(read_only=True)
+    is_available = serializers.BooleanField(read_only=True)
+    has_discount = serializers.BooleanField(read_only=True)
+    effective_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    
     class Meta:
         model = TicketType
         fields = ['id', 'name', 'description', 'price', 'discount_price', 'discount_percent', 
                  'is_discount_active', 'quantity', 'is_vip', 'sale_start', 'sale_end', 
-                 'sold_count', 'available_quantity', 'has_discount', 'effective_price']
+                 'sold_count', 'available_quantity', 'is_available', 'has_discount', 'effective_price']
 
 
 class TicketTypeSerializer(serializers.ModelSerializer):
     """Sérialiseur complet pour les types de billets"""
     event_title = serializers.CharField(source='event.title', read_only=True)
     available_quantity = serializers.IntegerField(read_only=True)
+    is_available = serializers.BooleanField(read_only=True)
     has_discount = serializers.BooleanField(read_only=True)
     effective_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
 
@@ -364,11 +370,20 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = EventRegistration
-        fields = ['id', 'event', 'ticket_type', 'session_type', 'session_type_id', 'notes', 'special_requirements', 'status', 'payment_status', 'guest_full_name', 'guest_email', 'guest_phone', 'guest_country']
+        fields = ['id', 'event', 'ticket_type', 'session_type', 'session_type_id', 'notes', 'special_requirements', 'status', 'payment_status', 'price_paid', 'guest_full_name', 'guest_email', 'guest_phone', 'guest_country']
         read_only_fields = ['id', 'user', 'status', 'registered_at', 'updated_at', 'payment_status']
 
     def validate(self, data):
         # 🎯 NOUVEAU : Logs de débogage détaillés
+        
+        # 🎯 NOUVELLE VALIDATION : Vérifier la disponibilité du type de billet
+        ticket_type = data.get('ticket_type')
+        if ticket_type and ticket_type.quantity is not None:
+            if not ticket_type.is_available:
+                raise serializers.ValidationError({
+                    'ticket_type': f"Le type de billet '{ticket_type.name}' n'est plus disponible (quantité épuisée)."
+                })
+            print(f"🔍 DEBUG: Ticket type {ticket_type.name} is available: {ticket_type.available_quantity} places left")
         print(f"🔍 DEBUG: validate() appelé avec data: {data}")
         print(f"🔍 DEBUG: Clés dans data: {list(data.keys())}")
         print(f"🔍 DEBUG: guest_full_name: {data.get('guest_full_name')}")
@@ -566,15 +581,9 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
         
         if ticket_type and ticket_type.quantity is not None:
             # Billet personnalisé avec quantité limitée
-            confirmed_ticket_count = EventRegistration.objects.filter(
-                event=event,
-                ticket_type=ticket_type,
-                status__in=['confirmed', 'attended']
-            ).count()
+            print(f"🔍 DEBUG: Custom ticket capacity - {ticket_type.name}: {ticket_type.sold_count}/{ticket_type.quantity}")
             
-            print(f"🔍 DEBUG: Custom ticket capacity - {ticket_type.name}: {confirmed_ticket_count}/{ticket_type.quantity}")
-            
-            if confirmed_ticket_count >= ticket_type.quantity:
+            if not ticket_type.is_available:
                 status = 'waitlisted'  # Liste d'attente si billet épuisé
                 print(f"🔍 DEBUG: Custom ticket sold out - Setting status to: {status}")
             else:
@@ -645,6 +654,24 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
         
         print(f"🔍 DEBUG: Data for create keys: {list(data_for_create.keys())}")
         
+        # 🎯 NOUVELLE LOGIQUE : Calculer le prix selon le type de billet
+        price_paid = 0
+        if ticket_type:
+            # Utiliser le prix du type de billet sélectionné
+            if ticket_type.is_discount_active and ticket_type.discount_price is not None:
+                price_paid = ticket_type.discount_price
+                print(f"🔍 DEBUG: Prix avec remise: {price_paid} (prix normal: {ticket_type.price}, remise: {ticket_type.discount_price})")
+            else:
+                price_paid = ticket_type.price
+                print(f"🔍 DEBUG: Prix normal du billet: {price_paid}")
+        else:
+            # Utiliser le prix par défaut de l'événement
+            price_paid = event.price
+            print(f"🔍 DEBUG: Prix par défaut de l'événement: {price_paid}")
+        
+        # Ajouter le prix calculé aux données de création
+        data_for_create['price_paid'] = price_paid
+        
         # 🎯 NOUVELLE LOGIQUE : Déterminer le payment_status selon le statut
         payment_status = 'pending'
         if status == 'confirmed':
@@ -677,11 +704,18 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
         
         print(f"🔍 DEBUG: Registration created - ID: {registration.id}, Status: {registration.status}, Payment: {registration.payment_status}")
         
-        # 🎯 CORRECTION : Mettre à jour le compteur pour les inscriptions confirmées
+        # 🎯 CORRECTION : Mettre à jour les compteurs pour les inscriptions confirmées
         if status == 'confirmed':
+            # Mettre à jour le compteur global de l'événement
             event.current_registrations += 1
             event.save()
             print(f"🔍 DEBUG: Updated event capacity: {event.current_registrations}/{event.max_capacity}")
+            
+            # Mettre à jour le compteur du type de billet si applicable
+            if ticket_type and ticket_type.quantity is not None:
+                ticket_type.sold_count += 1
+                ticket_type.save(update_fields=['sold_count'])
+                print(f"🔍 DEBUG: Updated ticket sold count: {ticket_type.name} = {ticket_type.sold_count}/{ticket_type.quantity}")
         
         return registration
 

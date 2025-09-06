@@ -1883,7 +1883,22 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
             if not getattr(settings, 'STRIPE_SECRET_KEY', None) or 'sk_test_51H1234567890' in settings.STRIPE_SECRET_KEY:
                 # Mode test - simuler un paiement réussi
                 registration = self.get_object()
-                amount = int(float(registration.price_paid or 0) * 100)
+                
+                # 🎯 CORRECTION : Calculer le montant selon le type de billet
+                amount = 0
+                if registration.ticket_type:
+                    # Utiliser le prix du type de billet sélectionné
+                    if registration.ticket_type.is_discount_active and registration.ticket_type.discount_price is not None:
+                        amount = int(float(registration.ticket_type.discount_price) * 100)
+                        print(f"🔍 DEBUG: Montant avec remise: {amount/100}€ (prix normal: {registration.ticket_type.price}€, remise: {registration.ticket_type.discount_price}€)")
+                    else:
+                        amount = int(float(registration.ticket_type.price) * 100)
+                        print(f"🔍 DEBUG: Montant normal du billet: {amount/100}€")
+                else:
+                    # Utiliser le prix par défaut de l'événement
+                    amount = int(float(registration.event.price) * 100)
+                    print(f"🔍 DEBUG: Montant par défaut de l'événement: {amount/100}€")
+                
                 if amount <= 0:
                     return Response({"error": "Montant invalide"}, status=status.HTTP_400_BAD_REQUEST)
                 
@@ -1902,7 +1917,22 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
             # Mode production avec Stripe réel
             stripe.api_key = settings.STRIPE_SECRET_KEY
             registration = self.get_object()
-            amount = int(float(registration.price_paid or 0) * 100)
+            
+            # 🎯 CORRECTION : Calculer le montant selon le type de billet
+            amount = 0
+            if registration.ticket_type:
+                # Utiliser le prix du type de billet sélectionné
+                if registration.ticket_type.is_discount_active and registration.ticket_type.discount_price is not None:
+                    amount = int(float(registration.ticket_type.discount_price) * 100)
+                    print(f"🔍 DEBUG: Montant avec remise: {amount/100}€ (prix normal: {registration.ticket_type.price}€, remise: {registration.ticket_type.discount_price}€)")
+                else:
+                    amount = int(float(registration.ticket_type.price) * 100)
+                    print(f"🔍 DEBUG: Montant normal du billet: {amount/100}€")
+            else:
+                # Utiliser le prix par défaut de l'événement
+                amount = int(float(registration.event.price) * 100)
+                print(f"🔍 DEBUG: Montant par défaut de l'événement: {amount/100}€")
+            
             if amount <= 0:
                 return Response({"error": "Montant invalide"}, status=status.HTTP_400_BAD_REQUEST)
             intent = stripe.PaymentIntent.create(
@@ -2009,16 +2039,9 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
             # 🔥 NOUVELLE LOGIQUE: Vérifier la capacité selon le type de billet
             if registration.ticket_type and registration.ticket_type.quantity is not None:
                 # Billet personnalisé - vérifier sa capacité spécifique
-                confirmed_ticket_count = EventRegistration.objects.filter(
-                    event=event,
-                    ticket_type=registration.ticket_type,
-                    status__in=['confirmed', 'attended']
-                ).count()
+                print(f"🔍 DEBUG: Custom ticket capacity - {registration.ticket_type.name}: {registration.ticket_type.sold_count}/{registration.ticket_type.quantity}")
                 
-                ticket_ok = confirmed_ticket_count < registration.ticket_type.quantity
-                print(f"🔍 DEBUG: Custom ticket capacity - {registration.ticket_type.name}: {confirmed_ticket_count}/{registration.ticket_type.quantity}, OK: {ticket_ok}")
-                
-                if not ticket_ok:
+                if not registration.ticket_type.is_available:
                     print(f"🔍 DEBUG: Custom ticket {registration.ticket_type.name} is sold out!")
                     # Mettre en liste d'attente car billet épuisé
                     registration.status = 'waitlisted'

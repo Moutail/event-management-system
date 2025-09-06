@@ -6,7 +6,7 @@ Votre inscription à l'événement "{{ event.title }}" a été confirmée !
 
 📅 Détails de l'événement :
 - Date : {{ event.start_date|date:"d/m/Y" }}
-- Heure : {{ event.start_time|time:"H:i" }}
+- Heure : {{ event.start_date|time:"H:i" }}
 - Lieu : {{ event.location }}
 
 🎫 Informations de votre billet :
