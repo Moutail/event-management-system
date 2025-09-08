@@ -23,19 +23,19 @@ import csv
 import io
 import logging
 
-from ..models import (
+from .models import (
     Event, Category, Tag, EventRegistration, EventHistory, 
     UserProfile, RefundRequest, VirtualEvent, VirtualEventInteraction,
     CustomReminder, CustomReminderRecipient
 )
-from ..serializers import (
+from .serializers import (
     EventSerializer, CategorySerializer, TagSerializer,
     EventRegistrationSerializer, EventHistorySerializer,
     UserProfileSerializer, RefundRequestSerializer,
     VirtualEventSerializer, VirtualEventInteractionSerializer,
     CustomReminderSerializer
 )
-from ..permissions import IsSuperAdmin, IsOrganizerOrSuperAdmin
+from .permissions import IsSuperAdmin, IsOrganizerOrSuperAdmin
 
 logger = logging.getLogger(__name__)
 
