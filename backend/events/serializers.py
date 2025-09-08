@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db import models
-from .models import Event, Category, Tag, EventRegistration, EventHistory, TicketType, SessionType, VirtualEvent, VirtualEventInteraction, CustomReminder, CustomReminderRecipient
+from .models import Event, Category, Tag, EventRegistration, EventHistory, TicketType, SessionType, VirtualEvent, VirtualEventInteraction, CustomReminder, CustomReminderRecipient, UserProfile, RefundRequest
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -11,6 +11,22 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'first_name', 'last_name', 'email']
         read_only_fields = ['id']
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    """Sérialiseur pour les profils utilisateurs"""
+    user = UserSerializer(read_only=True)
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    status_approval_display = serializers.CharField(source='get_status_approval_display', read_only=True)
+    
+    class Meta:
+        model = UserProfile
+        fields = [
+            'id', 'user', 'phone', 'country', 'role', 'role_display',
+            'status_approval', 'status_approval_display', 'approval_date',
+            'approved_by', 'rejection_reason'
+        ]
+        read_only_fields = ['id', 'approval_date', 'approved_by']
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -108,6 +124,23 @@ class EventHistorySerializer(serializers.ModelSerializer):
         model = EventHistory
         fields = '__all__'
         read_only_fields = ['id', 'timestamp']
+
+
+class RefundRequestSerializer(serializers.ModelSerializer):
+    """Sérialiseur pour les demandes de remboursement"""
+    registration = EventRegistrationSerializer(read_only=True)
+    processed_by = UserSerializer(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = RefundRequest
+        fields = [
+            'id', 'registration', 'status', 'status_display', 'reason',
+            'amount_paid', 'refund_percentage', 'refund_amount',
+            'processed_at', 'processed_by', 'stripe_refund_id',
+            'auto_process_at', 'expires_at', 'created_at'
+        ]
+        read_only_fields = ['id', 'processed_at', 'processed_by', 'created_at']
 
 
 class EventSerializer(serializers.ModelSerializer):
