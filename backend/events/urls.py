@@ -40,27 +40,8 @@ router.register(r'admin', SuperAdminViewSet, basename='admin')
 router.register(r'virtual-events', VirtualEventViewSet, basename='virtual_event')
 router.register(r'virtual-interactions', VirtualEventInteractionViewSet, basename='virtual_interaction')
 
-# 🔍 DEBUG: Enregistrement du ViewSet CustomReminder
-print("🔍 DEBUG: ===== ENREGISTREMENT CustomReminderViewSet =====")
-print(f"🔍 DEBUG: CustomReminderViewSet class: {CustomReminderViewSet}")
-print(f"🔍 DEBUG: CustomReminderViewSet methods: {[method for method in dir(CustomReminderViewSet) if not method.startswith('_')]}")
-print(f"🔍 DEBUG: CustomReminderViewSet queryset: {getattr(CustomReminderViewSet, 'queryset', 'AUCUN')}")
-print(f"🔍 DEBUG: CustomReminderViewSet serializer_class: {getattr(CustomReminderViewSet, 'serializer_class', 'AUCUN')}")
-print(f"🔍 DEBUG: CustomReminderViewSet permission_classes: {getattr(CustomReminderViewSet, 'permission_classes', 'AUCUN')}")
-
-try:
-    router.register(r'custom-reminders', CustomReminderViewSet, basename='custom_reminder')
-    print("🔍 DEBUG: ✅ CustomReminderViewSet enregistré avec succès")
-    print(f"🔍 DEBUG: URL pattern créé: custom-reminders")
-except Exception as e:
-    print(f"🔍 DEBUG: ❌ Erreur lors de l'enregistrement de CustomReminderViewSet: {e}")
-    import traceback
-    traceback.print_exc()
-
-# 🔍 DEBUG: Afficher toutes les URLs enregistrées
-print("🔍 DEBUG: URLs enregistrées dans le routeur:")
-for url_pattern in router.urls:
-    print(f"🔍 DEBUG: - {url_pattern}")
+# Enregistrement du ViewSet CustomReminder
+router.register(r'custom-reminders', CustomReminderViewSet, basename='custom_reminder')
 
 urlpatterns = [
     path('', include(router.urls)),

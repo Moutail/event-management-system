@@ -108,30 +108,35 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
 
 class EventHistoryViewSet(viewsets.ModelViewSet):
     """ViewSet pour l'historique des événements"""
-    queryset = EventHistory.objects.all()
     serializer_class = EventHistorySerializer
     permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return EventHistory.objects.all()
 
 class VirtualEventViewSet(viewsets.ModelViewSet):
     """ViewSet pour les événements virtuels"""
-    queryset = VirtualEvent.objects.all()
     serializer_class = VirtualEventSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+    
+    def get_queryset(self):
+        return VirtualEvent.objects.all()
 
 class VirtualEventInteractionViewSet(viewsets.ModelViewSet):
     """ViewSet pour les interactions d'événements virtuels"""
-    queryset = VirtualEventInteraction.objects.all()
     serializer_class = VirtualEventInteractionSerializer
     permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return VirtualEventInteraction.objects.all()
 
 class CustomReminderViewSet(viewsets.ModelViewSet):
     """ViewSet pour les rappels personnalisés"""
-    queryset = CustomReminder.objects.all()
     serializer_class = CustomReminderSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = CustomReminder.objects.all()
         if not self.request.user.is_superuser:
             queryset = queryset.filter(created_by=self.request.user)
         return queryset
