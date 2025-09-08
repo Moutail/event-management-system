@@ -7,6 +7,7 @@ Votre inscription à l'événement "{{ event.title }}" a été confirmée avec s
 Détails de l'événement :
 - Date : {{ event.start_date|date:"d/m/Y à H:i" }}
 - Lieu : {{ event.location }}
+- Type de billet : {{ registration.ticket_type.name|default:"Billet standard" }}
 - Prix facturé : {{ registration.price_paid|floatformat:2 }} €
 
 Votre billet QR Code :

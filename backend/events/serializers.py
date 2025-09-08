@@ -141,6 +141,11 @@ class EventSerializer(serializers.ModelSerializer):
     ticket_type_availability = serializers.SerializerMethodField()
     session_availability = serializers.SerializerMethodField()
     
+    # 🎯 NOUVELLES PROPRIÉTÉS DE PRIX POUR LES TYPES DE BILLETS
+    min_ticket_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    max_ticket_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    price_range_display = serializers.CharField(read_only=True)
+    
     # Statistiques
     registration_count = serializers.SerializerMethodField()
     confirmed_registration_count = serializers.SerializerMethodField()
@@ -404,6 +409,18 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
         # Déterminer si c'est une inscription d'invité
         is_guest = bool(guest_full_name and guest_email and guest_phone and guest_country)
         
+        # 🎯 CORRECTION MAJEURE : Récupérer le ticket_type_id depuis les données de la requête
+        request = self.context['request']
+        ticket_type_id = request.data.get('ticket_type_id')
+        ticket_type = None
+        if ticket_type_id:
+            try:
+                ticket_type = TicketType.objects.get(id=ticket_type_id, event=event)
+                print(f"🔍 DEBUG: Ticket type found: {ticket_type.name}")
+            except TicketType.DoesNotExist:
+                print(f"🔍 DEBUG: Ticket type not found: {ticket_type_id}")
+                raise serializers.ValidationError("Type de billet invalide.")
+        
         if is_guest:
             # 🎯 VALIDATION POUR LES INVITÉS
             print(f"🔍 DEBUG: Guest registration - Name: {guest_full_name}, Email: {guest_email}")
@@ -498,41 +515,64 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
             if existing_pending:
                 raise serializers.ValidationError("Vous avez déjà une inscription en attente de paiement pour cet événement.")
         
-        # Vérifier la capacité pour les événements avec places limitées
-        if event.place_type == 'limited' and event.max_capacity:
-            # Compter seulement les inscriptions confirmées
-            confirmed_count = EventRegistration.objects.filter(
-                event=event, 
-                status='confirmed'
-            ).count()
-            
-            print(f"🔍 DEBUG: Confirmed count: {confirmed_count}, Max capacity: {event.max_capacity}")
-            
-            # 🎯 NOUVELLE LOGIQUE : Respecter le paramètre enable_waitlist
-            if confirmed_count >= event.max_capacity and not event.enable_waitlist:
-                raise serializers.ValidationError("L'événement est complet et la liste d'attente est désactivée.")
-            elif confirmed_count >= event.max_capacity and event.enable_waitlist:
-                print(f"🔍 DEBUG: Event full but waitlist enabled - User will be waitlisted")
+        # 🎯 CORRECTION MAJEURE : Récupérer le ticket_type_id depuis les données de la requête
+        request = self.context['request']
+        ticket_type_id = request.data.get('ticket_type_id')
+        ticket_type = None
+        if ticket_type_id:
+            try:
+                ticket_type = TicketType.objects.get(id=ticket_type_id, event=event)
+                print(f"🔍 DEBUG: Ticket type found: {ticket_type.name}")
+            except TicketType.DoesNotExist:
+                print(f"🔍 DEBUG: Ticket type not found: {ticket_type_id}")
+                raise serializers.ValidationError("Type de billet invalide.")
         
-        # Vérifier le type de billet
-        ticket_type = data.get('ticket_type')
+        # 🎯 CORRECTION MAJEURE : Séparer la logique des billets par défaut et des types de billets
+        
         if ticket_type and ticket_type.event != event:
             raise serializers.ValidationError("Le type de billet ne correspond pas à l'événement.")
         
-        # Vérifier la disponibilité du type de billet
+        # 🎯 NOUVELLE LOGIQUE : Si un type de billet est sélectionné, vérifier SEULEMENT sa capacité
         if ticket_type and ticket_type.quantity is not None:
-            # Compter les inscriptions confirmées pour ce type de billet
-            confirmed_ticket_count = EventRegistration.objects.filter(
-                event=event,
-                ticket_type=ticket_type,
-                status__in=['confirmed', 'attended']
-            ).count()
+            # 🎯 CORRECTION MAJEURE : Utiliser sold_count au lieu de compter les inscriptions
+            confirmed_ticket_count = ticket_type.sold_count
             
-            # 🎯 NOUVELLE LOGIQUE : Vérifier si le type de billet est complet
+            print(f"🔍 DEBUG: ===== VALIDATION BILLET PERSONNALISÉ =====")
+            print(f"🔍 DEBUG: Custom ticket validation - {ticket_type.name}: {confirmed_ticket_count}/{ticket_type.quantity}")
+            print(f"🔍 DEBUG: ticket_type.enable_waitlist: {ticket_type.enable_waitlist}")
+            print(f"🔍 DEBUG: ticket_type.is_available: {ticket_type.is_available}")
+            
+            # 🎯 NOUVELLE LOGIQUE : Vérifier si le type de billet est complet avec gestion de la liste d'attente
             if confirmed_ticket_count >= ticket_type.quantity:
-                raise serializers.ValidationError(f"Le type de billet '{ticket_type.name}' est complet.")
+                if not ticket_type.enable_waitlist:
+                    print(f"🔍 DEBUG: Custom ticket full and waitlist disabled - Registration blocked")
+                    raise serializers.ValidationError(f"Le type de billet '{ticket_type.name}' est complet et la liste d'attente est désactivée.")
+                else:
+                    print(f"🔍 DEBUG: Custom ticket full but waitlist enabled - User will be waitlisted (NO BLOCKING)")
+                    print(f"🔍 DEBUG: Validation passed - User can register for waitlist")
+                    # 🎯 CORRECTION MAJEURE : Ne pas bloquer l'inscription, permettre la liste d'attente
+                    # L'inscription sera créée avec le statut 'waitlisted' dans la méthode create()
+            else:
+                print(f"🔍 DEBUG: Custom ticket has available places - Validation passed")
             
-            print(f"🔍 DEBUG: Ticket availability - {ticket_type.name}: {confirmed_ticket_count}/{ticket_type.quantity}")
+            print(f"🔍 DEBUG: ===== FIN VALIDATION BILLET PERSONNALISÉ =====")
+        else:
+            # 🎯 NOUVELLE LOGIQUE : Si PAS de type de billet (billet par défaut), vérifier la capacité globale
+            if event.place_type == 'limited' and event.max_capacity:
+                # Compter seulement les inscriptions confirmées SANS type de billet spécifique
+                confirmed_default_count = EventRegistration.objects.filter(
+                    event=event, 
+                    ticket_type__isnull=True,  # Seulement les billets par défaut
+                    status__in=['confirmed', 'attended']
+                ).count()
+                
+                print(f"🔍 DEBUG: Default ticket validation - {confirmed_default_count}/{event.max_capacity}")
+                
+                # Respecter le paramètre enable_waitlist pour les billets par défaut
+                if confirmed_default_count >= event.max_capacity and not event.enable_waitlist:
+                    raise serializers.ValidationError("L'événement est complet et la liste d'attente est désactivée.")
+                elif confirmed_default_count >= event.max_capacity and event.enable_waitlist:
+                    print(f"🔍 DEBUG: Default tickets full but waitlist enabled - User will be waitlisted")
         
         # 🎯 NOUVELLE LOGIQUE : Vérifier que la session est active
         session_type = data.get('session_type')
@@ -547,6 +587,14 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
         # Pas besoin de la refaire ici pour éviter la duplication
         
         print(f"🔍 DEBUG: Validation OK - Proceeding to create")
+        
+        # 🎯 CORRECTION MAJEURE : Ajouter ticket_type aux données validées
+        if ticket_type:
+            data['ticket_type'] = ticket_type
+            print(f"🔍 DEBUG: Ticket type added to validated data: {ticket_type.name}")
+        else:
+            print(f"🔍 DEBUG: No ticket type provided")
+        
         return data
 
     def create(self, validated_data):
@@ -583,24 +631,47 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
             # Billet personnalisé avec quantité limitée
             print(f"🔍 DEBUG: Custom ticket capacity - {ticket_type.name}: {ticket_type.sold_count}/{ticket_type.quantity}")
             
-            if not ticket_type.is_available:
-                status = 'waitlisted'  # Liste d'attente si billet épuisé
-                print(f"🔍 DEBUG: Custom ticket sold out - Setting status to: {status}")
+            # 🎯 CORRECTION MAJEURE : Vérifier si le billet est complet
+            print(f"🔍 DEBUG: ===== VÉRIFICATION CAPACITÉ BILLET PERSONNALISÉ =====")
+            print(f"🔍 DEBUG: Ticket Type: {ticket_type.name}")
+            print(f"🔍 DEBUG: Sold Count: {ticket_type.sold_count}")
+            print(f"🔍 DEBUG: Quantity Max: {ticket_type.quantity}")
+            print(f"🔍 DEBUG: Enable Waitlist: {ticket_type.enable_waitlist}")
+            print(f"🔍 DEBUG: Is Available: {ticket_type.is_available}")
+            
+            if ticket_type.sold_count >= ticket_type.quantity:
+                print(f"🔍 DEBUG: ===== BILLET COMPLET =====")
+                print(f"🔍 DEBUG: sold_count ({ticket_type.sold_count}) >= quantity ({ticket_type.quantity})")
+                
+                # 🎯 NOUVELLE LOGIQUE : Vérifier la liste d'attente du type de billet
+                if ticket_type.enable_waitlist:
+                    status = 'waitlisted'  # Liste d'attente si billet épuisé et waitlist activée
+                    print(f"🔍 DEBUG: ✅ WAITLIST ACTIVÉE - Setting status to: {status}")
+                    print(f"🔍 DEBUG: ✅ User will be added to waitlist for {ticket_type.name}")
+                    print(f"🔍 DEBUG: ✅ Inscription autorisée malgré le billet complet")
+                else:
+                    status = 'waitlisted'  # Même sans waitlist, on met en attente
+                    print(f"🔍 DEBUG: ⚠️ WAITLIST DÉSACTIVÉE - Setting status to: {status}")
+                    print(f"🔍 DEBUG: ⚠️ User will be waitlisted for {ticket_type.name} (no waitlist option)")
+                    print(f"🔍 DEBUG: ⚠️ Inscription autorisée mais sans waitlist")
             else:
+                print(f"🔍 DEBUG: ===== BILLET DISPONIBLE =====")
+                print(f"🔍 DEBUG: sold_count ({ticket_type.sold_count}) < quantity ({ticket_type.quantity})")
+                
                 # 🎯 NOUVELLE LOGIQUE : Si le billet est gratuit, confirmer directement
                 if ticket_type.price == 0:
                     status = 'confirmed'  # Confirmer directement si gratuit
-                    print(f"🔍 DEBUG: Free custom ticket available - Setting status to: {status}")
+                    print(f"🔍 DEBUG: ✅ Free custom ticket available - Setting status to: {status}")
                 else:
                     status = 'pending'  # En attente de paiement si payant
-                    print(f"🔍 DEBUG: Paid custom ticket available - Setting status to: {status}")
+                    print(f"🔍 DEBUG: ✅ Paid custom ticket available - Setting status to: {status}")
+            
+            print(f"🔍 DEBUG: ===== FIN VÉRIFICATION CAPACITÉ BILLET PERSONNALISÉ =====")
         else:
             # Billet "Par défaut" - vérifier la capacité globale de l'événement
             if event.place_type == 'limited' and event.max_capacity:
-                confirmed_count = EventRegistration.objects.filter(
-                    event=event, 
-                    status__in=['confirmed', 'attended']
-                ).count()
+                # 🎯 CORRECTION MAJEURE : Utiliser current_registrations au lieu de compter les inscriptions
+                confirmed_count = event.current_registrations
                 
                 print(f"🔍 DEBUG: Default ticket - Event capacity: {confirmed_count}/{event.max_capacity}")
                 
@@ -608,9 +679,11 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
                     if event.enable_waitlist:
                         status = 'waitlisted'  # Liste d'attente si événement complet et waitlist activée
                         print(f"🔍 DEBUG: Event full for default ticket - Setting status to: {status} (waitlist enabled)")
+                        print(f"🔍 DEBUG: User will be added to waitlist for default ticket")
                     else:
-                        status = 'pending'  # En attente de paiement même si complet (pas de waitlist)
+                        status = 'waitlisted'  # Même sans waitlist, on met en attente
                         print(f"🔍 DEBUG: Event full for default ticket - Setting status to: {status} (waitlist disabled)")
+                        print(f"🔍 DEBUG: User will be waitlisted for default ticket (no waitlist option)")
                 else:
                     # 🎯 NOUVELLE LOGIQUE : Si l'événement est gratuit, confirmer directement
                     if event.is_free:
@@ -651,6 +724,17 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
         
         # Supprimer session_type_id de data_for_create car ce n'est pas un champ du modèle
         data_for_create.pop('session_type_id', None)
+        
+        # 🎯 CORRECTION MAJEURE : Ajouter ticket_type si présent
+        if ticket_type:
+            data_for_create['ticket_type'] = ticket_type
+            print(f"🔍 DEBUG: Ticket type included: {ticket_type.name}")
+            print(f"🔍 DEBUG: Ticket type ID: {ticket_type.id}")
+            print(f"🔍 DEBUG: Ticket type price: {ticket_type.price}")
+        else:
+            print(f"🔍 DEBUG: No ticket type provided")
+            print(f"🔍 DEBUG: ticket_type variable: {ticket_type}")
+            print(f"🔍 DEBUG: validated_data ticket_type: {validated_data.get('ticket_type')}")
         
         print(f"🔍 DEBUG: Data for create keys: {list(data_for_create.keys())}")
         
@@ -704,18 +788,9 @@ class EventRegistrationCreateSerializer(serializers.ModelSerializer):
         
         print(f"🔍 DEBUG: Registration created - ID: {registration.id}, Status: {registration.status}, Payment: {registration.payment_status}")
         
-        # 🎯 CORRECTION : Mettre à jour les compteurs pour les inscriptions confirmées
-        if status == 'confirmed':
-            # Mettre à jour le compteur global de l'événement
-            event.current_registrations += 1
-            event.save()
-            print(f"🔍 DEBUG: Updated event capacity: {event.current_registrations}/{event.max_capacity}")
-            
-            # Mettre à jour le compteur du type de billet si applicable
-            if ticket_type and ticket_type.quantity is not None:
-                ticket_type.sold_count += 1
-                ticket_type.save(update_fields=['sold_count'])
-                print(f"🔍 DEBUG: Updated ticket sold count: {ticket_type.name} = {ticket_type.sold_count}/{ticket_type.quantity}")
+        # 🎯 CORRECTION MAJEURE : NE PAS incrémenter ici - c'est fait dans EventRegistration.save()
+        # La méthode _update_ticket_counters() dans EventRegistration.save() gère déjà les compteurs
+        print(f"🔍 DEBUG: Compteurs gérés par EventRegistration.save() - Pas d'incrémentation ici")
         
         return registration
 

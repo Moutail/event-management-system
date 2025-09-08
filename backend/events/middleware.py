@@ -22,9 +22,16 @@ class RequestLoggingMiddleware:
         print(f"🔍 DEBUG: Content-Type: {request.META.get('CONTENT_TYPE', 'AUCUN')}")
         print(f"🔍 DEBUG: User-Agent: {request.META.get('HTTP_USER_AGENT', 'AUCUN')}")
         
-        # Log du body pour les requêtes POST/PUT/PATCH
+        # Log du body pour les requêtes POST/PUT/PATCH (limité à 1KB pour éviter les erreurs)
         if request.method in ['POST', 'PUT', 'PATCH']:
-            print(f"🔍 DEBUG: Body: {request.body}")
+            try:
+                content_length = int(request.META.get('CONTENT_LENGTH', 0))
+                if content_length > 1024:  # Limite à 1KB
+                    print(f"🔍 DEBUG: Body: [TROP VOLUMINEUX - {content_length} bytes]")
+                else:
+                    print(f"🔍 DEBUG: Body: {request.body}")
+            except (ValueError, TypeError):
+                print(f"🔍 DEBUG: Body: [ERREUR LECTURE TAILLE]")
         
         # Log des paramètres GET
         if request.GET:

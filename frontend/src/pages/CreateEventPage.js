@@ -41,7 +41,16 @@ const CreateEventPage = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [ticketTypes, setTicketTypes] = useState([]);
-  const [newTicket, setNewTicket] = useState({ name: '', price: 0, quantity: '', is_vip: false, is_discount_active: false, discount_price: '', discount_percent: '' });
+  const [newTicket, setNewTicket] = useState({ 
+    name: '', 
+    price: 0, 
+    quantity: '', 
+    is_vip: false, 
+    is_discount_active: false, 
+    discount_price: '', 
+    discount_percent: '',
+    enable_waitlist: true  // 🎯 NOUVEAU : Liste d'attente pour les types de billets
+  });
   const [sessionTypes, setSessionTypes] = useState([]);
   const [newSession, setNewSession] = useState({ 
     name: '', 
@@ -49,6 +58,8 @@ const CreateEventPage = () => {
     is_mandatory: true, 
     display_order: 1 
   });
+  // 🎯 NOUVEAU : État pour désactiver les billets par défaut
+  const [disableDefaultTickets, setDisableDefaultTickets] = useState(false);
 
   const {
     control,
@@ -152,6 +163,15 @@ const CreateEventPage = () => {
     
     const formData = new FormData();
     
+    // 🎯 NOUVEAU : Gérer la désactivation des billets par défaut
+    if (disableDefaultTickets && ticketTypes.length > 0) {
+      // Si les billets par défaut sont désactivés, forcer les paramètres
+      data.place_type = 'unlimited';  // Pas de limite globale
+      data.max_capacity = null;       // Pas de capacité maximale
+      data.is_free = true;            // Gratuit par défaut (les prix sont dans les types)
+      data.price = 0;                 // Prix par défaut à 0
+    }
+    
     // Ajouter les champs de base
     Object.keys(data).forEach((key) => {
       if (data[key] !== null && data[key] !== undefined) {
@@ -163,8 +183,8 @@ const CreateEventPage = () => {
             formData.append('category_id', data[key]);
           }
         } else if (key === 'max_capacity') {
-          // Ne pas envoyer max_capacity si place_type est unlimited
-          if (data['place_type'] === 'limited' && data[key] && data[key] !== '') {
+          // Ne pas envoyer max_capacity si place_type est unlimited ou si billets par défaut désactivés
+          if (data['place_type'] === 'limited' && data[key] && data[key] !== '' && !disableDefaultTickets) {
             formData.append(key, data[key]);
           }
         } else {
@@ -235,6 +255,7 @@ const CreateEventPage = () => {
             is_discount_active: !!tt.is_discount_active,
             discount_price: tt.discount_price === '' ? null : Number(tt.discount_price),
             discount_percent: tt.discount_percent === '' ? null : Number(tt.discount_percent),
+            enable_waitlist: !!tt.enable_waitlist,  // 🎯 NOUVEAU : Liste d'attente pour les types de billets
           };
           try { await eventAPI.createTicketType(event.id, payload); } catch (_) {}
         }
@@ -410,9 +431,32 @@ const CreateEventPage = () => {
 
             {/* Types de billets */}
             <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                Types de billets
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6" gutterBottom>
+                  Types de billets
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={disableDefaultTickets}
+                      onChange={(e) => setDisableDefaultTickets(e.target.checked)}
+                      color="warning"
+                      disabled={ticketTypes.length === 0}
+                    />
+                  }
+                  label="Désactiver les billets par défaut"
+                />
+              </Box>
+              {ticketTypes.length > 0 && disableDefaultTickets && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Les billets par défaut sont désactivés. Seuls les types de billets personnalisés seront disponibles.
+                </Alert>
+              )}
+              {ticketTypes.length === 0 && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  💡 <strong>Astuce :</strong> Créez des types de billets personnalisés pour désactiver automatiquement les billets par défaut.
+                </Alert>
+              )}
               <Grid container spacing={2} alignItems="center" sx={{ mb: 1 }}>
                 <Grid item xs={12} md={3}>
                   <TextField label="Nom" fullWidth value={newTicket.name} onChange={(e)=>setNewTicket({...newTicket,name:e.target.value})} />
@@ -426,20 +470,27 @@ const CreateEventPage = () => {
                 <Grid item xs={6} md={2}>
                   <FormControlLabel control={<Switch checked={newTicket.is_vip} onChange={(e)=>setNewTicket({...newTicket,is_vip:e.target.checked})} />} label="VIP" />
                 </Grid>
-                <Grid item xs={6} md={3}>
-                  <FormControlLabel control={<Switch checked={newTicket.is_discount_active} onChange={(e)=>setNewTicket({...newTicket,is_discount_active:e.target.checked})} />} label="Réduction active" />
-                </Grid>
                 <Grid item xs={6} md={2}>
-                  <TextField label="Prix remisé ($)" type="number" fullWidth value={newTicket.discount_price} onChange={(e)=>setNewTicket({...newTicket,discount_price:e.target.value})} />
+                  <FormControlLabel control={<Switch checked={newTicket.enable_waitlist} onChange={(e)=>setNewTicket({...newTicket,enable_waitlist:e.target.checked})} />} label="Liste d'attente" />
                 </Grid>
-                <Grid item xs={6} md={2}>
-                  <TextField label="Réduction %" type="number" fullWidth value={newTicket.discount_percent} onChange={(e)=>setNewTicket({...newTicket,discount_percent:e.target.value})} />
-                </Grid>
-                <Grid item xs={12} md={2}>
+                <Grid item xs={12} md={1}>
                   <Button variant="outlined" onClick={()=>{
                     if(!newTicket.name) return;
                     setTicketTypes([...ticketTypes, newTicket]);
-                    setNewTicket({ name: '', price: 0, quantity: '', is_vip: false, is_discount_active: false, discount_price: '', discount_percent: '' });
+                    setNewTicket({ 
+                      name: '', 
+                      price: 0, 
+                      quantity: '', 
+                      is_vip: false, 
+                      is_discount_active: false, 
+                      discount_price: '', 
+                      discount_percent: '',
+                      enable_waitlist: true
+                    });
+                    // 🎯 NOUVEAU : Désactiver automatiquement les billets par défaut quand des types sont créés
+                    if (ticketTypes.length === 0) {
+                      setDisableDefaultTickets(true);
+                    }
                   }}>Ajouter</Button>
                 </Grid>
               </Grid>
@@ -447,8 +498,20 @@ const CreateEventPage = () => {
                 <Box sx={{ display:'flex', flexDirection:'column', gap:1 }}>
                   {ticketTypes.map((tt,idx)=> (
                     <Box key={idx} sx={{ p:1.5, border:'1px solid #eee', borderRadius:1, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                      <Typography>{tt.name} — {tt.is_discount_active && tt.discount_price ? <><span style={{textDecoration:'line-through', marginRight:6}}>${Number(tt.price).toFixed(2)}</span><strong>${Number(tt.discount_price).toFixed(2)}</strong></> : <>${Number(tt.price).toFixed(2)}</>} {tt.is_vip ? ' • VIP' : ''} {tt.quantity? ` • Qté: ${tt.quantity}`:''}</Typography>
-                      <Button color="error" onClick={()=> setTicketTypes(ticketTypes.filter((_,i)=>i!==idx))}>Supprimer</Button>
+                      <Typography>
+                        {tt.name} — {tt.is_discount_active && tt.discount_price ? <><span style={{textDecoration:'line-through', marginRight:6}}>${Number(tt.price).toFixed(2)}</span><strong>${Number(tt.discount_price).toFixed(2)}</strong></> : <>${Number(tt.price).toFixed(2)}</>} 
+                        {tt.is_vip ? ' • VIP' : ''} 
+                        {tt.quantity ? ` • Qté: ${tt.quantity}` : ' • Illimité'} 
+                        {tt.enable_waitlist ? ' • Liste d\'attente' : ''}
+                      </Typography>
+                      <Button color="error" onClick={()=> {
+                        const newTicketTypes = ticketTypes.filter((_,i)=>i!==idx);
+                        setTicketTypes(newTicketTypes);
+                        // 🎯 NOUVEAU : Réactiver les billets par défaut si plus de types de billets
+                        if (newTicketTypes.length === 0) {
+                          setDisableDefaultTickets(false);
+                        }
+                      }}>Supprimer</Button>
                     </Box>
                   ))}
                 </Box>
@@ -628,108 +691,117 @@ const CreateEventPage = () => {
             {/* Capacité et prix */}
             <Grid item xs={12}>
               <Typography variant="h6" gutterBottom>
-                Capacité et prix
+                Capacité et prix {disableDefaultTickets && ticketTypes.length > 0 && <Chip label="Désactivé" color="warning" size="small" sx={{ ml: 1 }} />}
               </Typography>
+              {disableDefaultTickets && ticketTypes.length > 0 && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Les billets par défaut sont désactivés. La capacité et le prix sont gérés par les types de billets personnalisés ci-dessus.
+                </Alert>
+              )}
             </Grid>
 
-            <Grid item xs={12} md={4}>
-              <Controller
-                name="place_type"
-                control={control}
-                render={({ field }) => (
-                  <FormControl fullWidth>
-                    <InputLabel>Type de places</InputLabel>
-                    <Select {...field} label="Type de places">
-                      <MenuItem value="unlimited">Places illimitées</MenuItem>
-                      <MenuItem value="limited">Places limitées</MenuItem>
-                    </Select>
-                  </FormControl>
-                )}
-              />
-            </Grid>
+            {!disableDefaultTickets && (
+              <>
+                <Grid item xs={12} md={4}>
+                  <Controller
+                    name="place_type"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControl fullWidth>
+                        <InputLabel>Type de places</InputLabel>
+                        <Select {...field} label="Type de places">
+                          <MenuItem value="unlimited">Places illimitées</MenuItem>
+                          <MenuItem value="limited">Places limitées</MenuItem>
+                        </Select>
+                      </FormControl>
+                    )}
+                  />
+                </Grid>
 
-            {placeType === 'limited' && (
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="max_capacity"
-                  control={control}
-                  rules={{ 
-                    required: placeType === 'limited' ? 'La capacité maximale est requise' : false,
-                    min: { value: 1, message: 'Minimum 1 place' }
-                  }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Capacité maximale"
-                      type="number"
-                      fullWidth
-                      error={!!errors.max_capacity}
-                      helperText={errors.max_capacity?.message}
-                    />
-                  )}
-                />
-              </Grid>
-            )}
-
-            {placeType === 'limited' && (
-              <Grid item xs={12} md={4}>
-                <FormControlLabel
-                  control={
+                {placeType === 'limited' && (
+                  <Grid item xs={12} md={4}>
                     <Controller
-                      name="enable_waitlist"
+                      name="max_capacity"
                       control={control}
+                      rules={{ 
+                        required: placeType === 'limited' ? 'La capacité maximale est requise' : false,
+                        min: { value: 1, message: 'Minimum 1 place' }
+                      }}
                       render={({ field }) => (
-                        <Switch
-                          checked={field.value}
-                          onChange={field.onChange}
+                        <TextField
+                          {...field}
+                          label="Capacité maximale"
+                          type="number"
+                          fullWidth
+                          error={!!errors.max_capacity}
+                          helperText={errors.max_capacity?.message}
                         />
                       )}
                     />
-                  }
-                  label="Activer la liste d'attente"
-                />
-              </Grid>
-            )}
+                  </Grid>
+                )}
 
-            <Grid item xs={12} md={4}>
-              <FormControlLabel
-                control={
-                  <Controller
-                    name="is_free"
-                    control={control}
-                    render={({ field }) => (
-                      <Switch
-                        checked={field.value}
-                        onChange={field.onChange}
-                      />
-                    )}
-                  />
-                }
-                label="Événement gratuit"
-              />
-            </Grid>
-
-            {!isFree && (
-              <Grid item xs={12} md={4}>
-                <Controller
-                  name="price"
-                  control={control}
-                  rules={{ 
-                    required: !isFree ? 'Le prix est requis' : false,
-                    min: { value: 0, message: 'Le prix doit être positif' }
-                  }}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                     label="Prix ($)"
-                      type="number"
-                      fullWidth
-                      error={!!errors.price}
-                      helperText={errors.price?.message}
+                {placeType === 'limited' && (
+                  <Grid item xs={12} md={4}>
+                    <FormControlLabel
+                      control={
+                        <Controller
+                          name="enable_waitlist"
+                          control={control}
+                          render={({ field }) => (
+                            <Switch
+                              checked={field.value}
+                              onChange={field.onChange}
+                            />
+                          )}
+                        />
+                      }
+                      label="Activer la liste d'attente"
                     />
-                  )}
-                />
-              </Grid>
+                  </Grid>
+                )}
+
+                <Grid item xs={12} md={4}>
+                  <FormControlLabel
+                    control={
+                      <Controller
+                        name="is_free"
+                        control={control}
+                        render={({ field }) => (
+                          <Switch
+                            checked={field.value}
+                            onChange={field.onChange}
+                          />
+                        )}
+                      />
+                    }
+                    label="Événement gratuit"
+                  />
+                </Grid>
+
+                {!isFree && (
+                  <Grid item xs={12} md={4}>
+                    <Controller
+                      name="price"
+                      control={control}
+                      rules={{ 
+                        required: !isFree ? 'Le prix est requis' : false,
+                        min: { value: 0, message: 'Le prix doit être positif' }
+                      }}
+                      render={({ field }) => (
+                        <TextField
+                          {...field}
+                         label="Prix ($)"
+                          type="number"
+                          fullWidth
+                          error={!!errors.price}
+                          helperText={errors.price?.message}
+                        />
+                      )}
+                    />
+                  </Grid>
+                )}
+              </>
             )}
 
             <Grid item xs={12}>

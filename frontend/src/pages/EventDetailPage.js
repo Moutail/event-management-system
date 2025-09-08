@@ -322,7 +322,7 @@ const EventDetailPage = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
             <MoneyIcon sx={{ color: 'success.main', mr: 1 }} />
             <Typography variant="body1" sx={{ fontWeight: 500, color: 'success.main' }}>
-              {currentEvent.is_free ? 'Gratuit' : formatPrice(currentEvent.price)}
+              {currentEvent.price_range_display || (currentEvent.is_free ? 'Gratuit' : formatPrice(currentEvent.price))}
                 </Typography>
           </Box>
           {currentEvent.place_type === 'limited' && currentEvent.max_capacity && (
@@ -733,7 +733,10 @@ const EventDetailPage = () => {
             top: 24,
           }}>
             <Typography variant="h5" sx={{ mb: 3, fontWeight: 600, textAlign: 'center' }}>
-              {currentEvent.is_free ? 'Inscription gratuite' : `Prix: ${formatPrice(currentEvent.price)}`}
+              {currentEvent.ticket_types && currentEvent.ticket_types.length > 0 ? 
+                'Types de billets disponibles' : 
+                (currentEvent.is_free ? 'Inscription gratuite' : `Prix: ${formatPrice(currentEvent.price)}`)
+              }
             </Typography>
 
             {userRegistration ? (
@@ -836,7 +839,22 @@ const EventDetailPage = () => {
             ) : (
               <Box sx={{ textAlign: 'center' }}>
                                 <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                  {currentEvent.place_type === 'limited' && currentEvent.max_capacity ? (
+                  {currentEvent.ticket_types && currentEvent.ticket_types.length > 0 ? (
+                    // 🎯 NOUVEAU : Afficher les places des types de billets personnalisés
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      {currentEvent.ticket_types.map((ticketType, index) => (
+                        <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
+                          <Typography variant="body2" component="span">
+                            {ticketType.name} - {formatPrice(ticketType.price)}
+                          </Typography>
+                          <Typography variant="body2" component="span" color={ticketType.available_quantity > 0 ? 'success.main' : 'warning.main'}>
+                            {ticketType.quantity ? `${ticketType.available_quantity}/${ticketType.quantity} places` : 'Illimité'}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : currentEvent.place_type === 'limited' && currentEvent.max_capacity ? (
+                    // 🎯 LOGIQUE EXISTANTE : Billets par défaut
                     (currentEvent.max_capacity - (currentEvent.current_registrations || 0)) > 0 ? (
                       `${currentEvent.max_capacity - (currentEvent.current_registrations || 0)} places disponibles`
                     ) : (

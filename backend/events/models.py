@@ -228,9 +228,15 @@ class Event(models.Model):
         if self.status == 'published' and not self.published_at:
             self.published_at = timezone.now()
 
-        # Garder la cohérence prix/gratuité même si l'objet est créé hors serializer
+        # 🎯 NOUVELLE LOGIQUE : Déterminer si l'événement est gratuit
         try:
-            self.is_free = (Decimal(self.price or 0) == Decimal('0'))
+            # Si des types de billets existent, vérifier s'ils sont tous gratuits
+            if self.ticket_types.exists():
+                # L'événement est gratuit seulement si TOUS les types de billets sont gratuits
+                self.is_free = all(Decimal(ticket_type.price or 0) == Decimal('0') for ticket_type in self.ticket_types.all())
+            else:
+                # Pas de types de billets, utiliser le prix par défaut
+                self.is_free = (Decimal(self.price or 0) == Decimal('0'))
         except Exception:
             pass
         
@@ -253,19 +259,19 @@ class Event(models.Model):
     # 🎯 NOUVELLE LOGIQUE DE COMPTAGE SÉPARÉ
     @property
     def default_ticket_available_places(self):
-        """Places disponibles pour les billets par défaut (INDÉPENDANT des sessions)"""
+        """Places disponibles pour les billets par défaut (SEULEMENT les billets sans type spécifique)"""
         if self.place_type == 'unlimited' or self.max_capacity is None:
             return None
         
-        # 🎯 NOUVELLE LOGIQUE : Les billets par défaut sont INDÉPENDANTS des sessions
-        # Compter TOUTES les inscriptions confirmées (peu importe le type de billet ou la session)
-        total_confirmed_registrations = self.registrations.filter(
-            status__in=['confirmed', 'attended']
+        # 🎯 CORRECTION MAJEURE : Compter SEULEMENT les inscriptions confirmées SANS type de billet spécifique
+        default_confirmed_registrations = self.registrations.filter(
+            status__in=['confirmed', 'attended'],
+            ticket_type__isnull=True  # Seulement les billets par défaut
         ).count()
         
-        print(f"🔍 DEBUG: default_ticket_available_places - Total: {self.max_capacity}, Confirmées: {total_confirmed_registrations}")
+        print(f"🔍 DEBUG: default_ticket_available_places - Total: {self.max_capacity}, Billets par défaut confirmés: {default_confirmed_registrations}")
         
-        return max(0, self.max_capacity - total_confirmed_registrations)
+        return max(0, self.max_capacity - default_confirmed_registrations)
 
     @property
     def default_ticket_is_full(self):
@@ -279,11 +285,8 @@ class Event(models.Model):
         availability = {}
         
         for ticket_type in self.ticket_types.all():
-            # Compter les inscriptions confirmées pour ce type de billet
-            confirmed_count = self.registrations.filter(
-                status__in=['confirmed', 'attended'],
-                ticket_type=ticket_type
-            ).count()
+            # 🎯 CORRECTION MAJEURE : Utiliser sold_count au lieu de compter les inscriptions
+            confirmed_count = ticket_type.sold_count
             
             available = max(0, ticket_type.quantity - confirmed_count) if ticket_type.quantity else None
             availability[ticket_type.id] = {
@@ -321,6 +324,45 @@ class Event(models.Model):
         if self.place_type == 'unlimited':
             return True
         return self.default_ticket_available_places > 0
+    
+    @property
+    def min_ticket_price(self):
+        """Retourne le prix minimum des types de billets"""
+        if self.ticket_types.exists():
+            prices = [Decimal(ticket_type.price or 0) for ticket_type in self.ticket_types.all()]
+            return min(prices)
+        return Decimal(self.price or 0)
+    
+    @property
+    def max_ticket_price(self):
+        """Retourne le prix maximum des types de billets"""
+        if self.ticket_types.exists():
+            prices = [Decimal(ticket_type.price or 0) for ticket_type in self.ticket_types.all()]
+            return max(prices)
+        return Decimal(self.price or 0)
+    
+    @property
+    def price_range_display(self):
+        """Retourne l'affichage de la gamme de prix"""
+        if self.ticket_types.exists():
+            min_price = self.min_ticket_price
+            max_price = self.max_ticket_price
+            
+            if min_price == max_price:
+                if min_price == 0:
+                    return "Gratuit"
+                else:
+                    return f"${min_price:.2f}"
+            else:
+                if min_price == 0:
+                    return f"Gratuit - ${max_price:.2f}"
+                else:
+                    return f"${min_price:.2f} - ${max_price:.2f}"
+        else:
+            if self.is_free:
+                return "Gratuit"
+            else:
+                return f"${self.price:.2f}"
 
     def can_register_for_ticket_type(self, ticket_type_id):
         """Vérifie si on peut encore s'inscrire avec un type de billet spécifique"""
@@ -488,6 +530,7 @@ class TicketType(models.Model):
     is_discount_active = models.BooleanField(default=False, verbose_name="Réduction active")
     quantity = models.PositiveIntegerField(null=True, blank=True, verbose_name="Quantité disponible")
     is_vip = models.BooleanField(default=False, verbose_name="Billet VIP")
+    enable_waitlist = models.BooleanField(default=True, verbose_name="Activer la liste d'attente")
     sale_start = models.DateTimeField(null=True, blank=True, verbose_name="Début de vente")
     sale_end = models.DateTimeField(null=True, blank=True, verbose_name="Fin de vente")
     sold_count = models.PositiveIntegerField(default=0, verbose_name="Billets vendus")
@@ -685,6 +728,19 @@ class EventRegistration(models.Model):
         logger.info(f"🔍 LOG CRITIQUE: EventRegistration.save() appelé pour inscription {self.id if self.id else 'NEW'}")
         logger.info(f"🔍 LOG CRITIQUE: Event {self.event_id if hasattr(self, 'event_id') else 'N/A'} - is_virtual: {getattr(self.event, 'is_virtual', 'N/A') if hasattr(self, 'event') else 'N/A'}")
         
+        # 🎯 CORRECTION MAJEURE : Détecter si c'est une nouvelle inscription ou une mise à jour
+        is_new = self.pk is None
+        old_status = None
+        old_ticket_type_id = None
+        
+        if not is_new:
+            try:
+                old_instance = EventRegistration.objects.get(pk=self.pk)
+                old_status = old_instance.status
+                old_ticket_type_id = old_instance.ticket_type_id
+            except EventRegistration.DoesNotExist:
+                is_new = True
+        
         if self.status == 'confirmed' and not self.confirmed_at:
             self.confirmed_at = timezone.now()
         elif self.status == 'cancelled' and not self.cancelled_at:
@@ -699,6 +755,9 @@ class EventRegistration(models.Model):
             self.virtual_access_code = self._generate_virtual_access_code()
 
         super().save(*args, **kwargs)
+        
+        # 🎯 CORRECTION MAJEURE : Mettre à jour les compteurs après sauvegarde
+        self._update_ticket_counters(is_new, old_status, old_ticket_type_id)
 
         # Generate QR after we have an ID and token (seulement pour événements physiques)
         if (self.event.is_physical and 
@@ -709,6 +768,101 @@ class EventRegistration(models.Model):
             
         # 🔍 LOG CRITIQUE: Après sauvegarde
         logger.info(f"🔍 LOG CRITIQUE: EventRegistration.save() terminé - Aucun appel à configure_stream ou start_stream effectué")
+
+    def _update_ticket_counters(self, is_new, old_status, old_ticket_type_id):
+        """Met à jour les compteurs de billets selon le statut et le type de billet"""
+        print(f"🔍 DEBUG: ===== _update_ticket_counters DÉBUT =====")
+        print(f"🔍 DEBUG: _update_ticket_counters - is_new: {is_new}, old_status: {old_status}, current_status: {self.status}")
+        print(f"🔍 DEBUG: _update_ticket_counters - ticket_type: {self.ticket_type}")
+        print(f"🔍 DEBUG: _update_ticket_counters - ticket_type_id: {self.ticket_type_id if hasattr(self, 'ticket_type_id') else 'N/A'}")
+        print(f"🔍 DEBUG: _update_ticket_counters - event_id: {self.event_id}")
+        
+        if self.ticket_type:
+            print(f"🔍 DEBUG: _update_ticket_counters - ticket_type.name: {self.ticket_type.name}")
+            print(f"🔍 DEBUG: _update_ticket_counters - ticket_type.quantity: {self.ticket_type.quantity}")
+            print(f"🔍 DEBUG: _update_ticket_counters - ticket_type.sold_count: {self.ticket_type.sold_count}")
+            print(f"🔍 DEBUG: _update_ticket_counters - ticket_type.enable_waitlist: {self.ticket_type.enable_waitlist}")
+            print(f"🔍 DEBUG: _update_ticket_counters - ticket_type.is_available: {self.ticket_type.is_available}")
+        else:
+            print(f"🔍 DEBUG: _update_ticket_counters - Pas de ticket_type (billet par défaut)")
+            print(f"🔍 DEBUG: _update_ticket_counters - event.max_capacity: {self.event.max_capacity}")
+            print(f"🔍 DEBUG: _update_ticket_counters - event.current_registrations: {self.event.current_registrations}")
+            print(f"🔍 DEBUG: _update_ticket_counters - event.enable_waitlist: {self.event.enable_waitlist}")
+        
+        # Si c'est une nouvelle inscription confirmée
+        if is_new and self.status == 'confirmed':
+            print(f"🔍 DEBUG: ===== NOUVELLE INSCRIPTION CONFIRMÉE =====")
+            print(f"🔍 DEBUG: Registration ID: {self.id}")
+            print(f"🔍 DEBUG: Event: {self.event.title}")
+            print(f"🔍 DEBUG: User: {self.user if self.user else 'Guest'}")
+            print(f"🔍 DEBUG: Guest: {self.guest_full_name if self.guest_full_name else 'N/A'}")
+            print(f"🔍 DEBUG: Pas d'incrémentation ici - géré par le changement de statut")
+            print(f"🔍 DEBUG: ===== FIN NOUVELLE INSCRIPTION CONFIRMÉE =====")
+        
+        # 🎯 NOUVELLE LOGIQUE : Si c'est une nouvelle inscription en attente, ne pas compter encore
+        elif is_new and self.status == 'pending':
+            print(f"🔍 DEBUG: NOUVELLE INSCRIPTION EN ATTENTE - Pas de mise à jour des compteurs")
+            if self.ticket_type:
+                print(f"🔍 DEBUG: Billet personnalisé en attente - {self.ticket_type.name}")
+            else:
+                print(f"🔍 DEBUG: Billet par défaut en attente")
+        
+        # Si le statut change de non-confirmé à confirmé
+        elif not is_new and old_status != 'confirmed' and self.status == 'confirmed':
+            print(f"🔍 DEBUG: ===== STATUT CHANGÉ VERS CONFIRMÉ =====")
+            print(f"🔍 DEBUG: Registration ID: {self.id}")
+            print(f"🔍 DEBUG: Old Status: {old_status} -> New Status: {self.status}")
+            
+            if self.ticket_type and self.ticket_type.quantity is not None:
+                print(f"🔍 DEBUG: ===== INCREMENTATION BILLET PERSONNALISE (CHANGEMENT STATUT) =====")
+                print(f"🔍 DEBUG: BILLET PERSONNALISÉ - {self.ticket_type.name}")
+                print(f"🔍 DEBUG: AVANT INCREMENTATION - sold_count: {self.ticket_type.sold_count}")
+                print(f"🔍 DEBUG: Ticket Type ID: {self.ticket_type.id}")
+                
+                # Billet personnalisé - incrémenter le compteur
+                self.ticket_type.sold_count += 1
+                self.ticket_type.save(update_fields=['sold_count'])
+                
+                print(f"🔍 DEBUG: APRÈS INCREMENTATION - sold_count: {self.ticket_type.sold_count}")
+                print(f"🔍 DEBUG: ===== FIN INCREMENTATION BILLET PERSONNALISE (CHANGEMENT STATUT) =====")
+                print(f"🔍 DEBUG: Statut changé vers confirmé - {self.ticket_type.name}: {self.ticket_type.sold_count}/{self.ticket_type.quantity}")
+            else:
+                print(f"🔍 DEBUG: BILLET PAR DÉFAUT")
+                print(f"🔍 DEBUG: Avant - current_registrations: {self.event.current_registrations}")
+                # Billet par défaut - incrémenter le compteur global
+                self.event.current_registrations += 1
+                self.event.save(update_fields=['current_registrations'])
+                print(f"🔍 DEBUG: Après - current_registrations: {self.event.current_registrations}")
+                print(f"🔍 DEBUG: Statut changé vers confirmé (par défaut) - {self.event.current_registrations}/{self.event.max_capacity}")
+        
+        # Si le statut change de confirmé à non-confirmé (annulation)
+        elif not is_new and old_status == 'confirmed' and self.status != 'confirmed':
+            print(f"🔍 DEBUG: INSCRIPTION ANNULÉE")
+            if old_ticket_type_id:
+                try:
+                    old_ticket_type = TicketType.objects.get(id=old_ticket_type_id)
+                    print(f"🔍 DEBUG: BILLET PERSONNALISÉ ANCIEN - {old_ticket_type.name}")
+                    print(f"🔍 DEBUG: Avant - sold_count: {old_ticket_type.sold_count}")
+                    old_ticket_type.sold_count = max(0, old_ticket_type.sold_count - 1)
+                    old_ticket_type.save(update_fields=['sold_count'])
+                    print(f"🔍 DEBUG: Après - sold_count: {old_ticket_type.sold_count}")
+                    print(f"🔍 DEBUG: Inscription annulée - {old_ticket_type.name}: {old_ticket_type.sold_count}/{old_ticket_type.quantity}")
+                except TicketType.DoesNotExist:
+                    print(f"🔍 DEBUG: Ancien type de billet non trouvé: {old_ticket_type_id}")
+                    pass
+            else:
+                print(f"🔍 DEBUG: BILLET PAR DÉFAUT ANCIEN")
+                print(f"🔍 DEBUG: Avant - current_registrations: {self.event.current_registrations}")
+                # Billet par défaut - décrémenter le compteur global
+                self.event.current_registrations = max(0, self.event.current_registrations - 1)
+                self.event.save(update_fields=['current_registrations'])
+                print(f"🔍 DEBUG: Après - current_registrations: {self.event.current_registrations}")
+                print(f"🔍 DEBUG: Inscription par défaut annulée - {self.event.current_registrations}/{self.event.max_capacity}")
+        else:
+            print(f"🔍 DEBUG: AUCUNE MISE À JOUR NÉCESSAIRE")
+            print(f"🔍 DEBUG: is_new: {is_new}, old_status: {old_status}, current_status: {self.status}")
+        
+        print(f"🔍 DEBUG: ===== _update_ticket_counters FIN =====")
 
     def _generate_virtual_access_code(self):
         """Génère un code d'accès unique pour les événements virtuels"""

@@ -2036,9 +2036,9 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
             
             print(f"🔍 DEBUG: Confirmed count: {confirmed_count}")
             
-            # 🔥 NOUVELLE LOGIQUE: Vérifier la capacité selon le type de billet
+            # 🎯 CORRECTION MAJEURE : Séparer la logique des billets personnalisés et par défaut
             if registration.ticket_type and registration.ticket_type.quantity is not None:
-                # Billet personnalisé - vérifier sa capacité spécifique
+                # 🎯 BILLET PERSONNALISÉ : Vérifier SEULEMENT sa capacité spécifique
                 print(f"🔍 DEBUG: Custom ticket capacity - {registration.ticket_type.name}: {registration.ticket_type.sold_count}/{registration.ticket_type.quantity}")
                 
                 if not registration.ticket_type.is_available:
@@ -2050,18 +2050,28 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
                     print(f"🔍 DEBUG: Custom ticket available - confirming registration")
                     registration.status = 'confirmed'
                     
-                    # Mettre à jour le compteur du billet
+                    # Mettre à jour SEULEMENT le compteur du billet personnalisé
                     tt = registration.ticket_type
                     tt.sold_count = tt.sold_count + 1
                     tt.save(update_fields=['sold_count'])
-                    print(f"🔍 DEBUG: Updated ticket sold count to: {tt.sold_count}")
+                    print(f"🔍 DEBUG: Updated custom ticket sold count to: {tt.sold_count}")
+                    
+                    # NE PAS toucher au compteur global de l'événement
+                    print(f"🔍 DEBUG: Custom ticket - NOT updating global event counter")
             else:
-                # Billet "Par défaut" - vérifier la capacité globale de l'événement
+                # 🎯 BILLET PAR DÉFAUT : Vérifier la capacité globale de l'événement
+                # Compter seulement les billets par défaut confirmés
+                confirmed_default_count = EventRegistration.objects.filter(
+                    event=event,
+                    ticket_type__isnull=True,  # Seulement les billets par défaut
+                    status__in=['confirmed', 'attended']
+                ).count()
+                
                 capacity_ok = (event.place_type == 'unlimited' or 
                               event.max_capacity is None or 
-                              confirmed_count < event.max_capacity)
+                              confirmed_default_count < event.max_capacity)
                 
-                print(f"🔍 DEBUG: Default ticket - Event capacity OK: {capacity_ok}")
+                print(f"🔍 DEBUG: Default ticket - Event capacity OK: {capacity_ok} ({confirmed_default_count}/{event.max_capacity})")
                 
                 if capacity_ok:
                     # Place disponible - confirmer l'inscription
@@ -2075,11 +2085,11 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
             # Sauvegarder le statut final
             registration.save(update_fields=['payment_status', 'payment_provider', 'payment_reference', 'price_paid', 'status', 'updated_at'])
             
-            # Mettre à jour le compteur global de l'événement si confirmé
-            if registration.status == 'confirmed':
-                event.current_registrations = confirmed_count + 1
+            # 🎯 CORRECTION : Mettre à jour le compteur global SEULEMENT pour les billets par défaut
+            if registration.status == 'confirmed' and not (registration.ticket_type and registration.ticket_type.quantity is not None):
+                event.current_registrations = confirmed_default_count + 1
                 event.save(update_fields=['current_registrations'])
-                print(f"🔍 DEBUG: Updated event capacity to: {event.current_registrations}")
+                print(f"🔍 DEBUG: Updated default ticket capacity to: {event.current_registrations}")
         else:
             print(f"🔍 DEBUG: Registration status not pending/waitlisted: {registration.status}")
             registration.save(update_fields=['payment_status', 'payment_provider', 'payment_reference', 'price_paid', 'updated_at'])
@@ -2260,10 +2270,20 @@ class EventRegistrationViewSet(viewsets.ModelViewSet):
             registration.payment_provider = 'test'
             registration.payment_reference = f"test_{int(time.time())}"
             
-            # 💰 CRITIQUE: Mettre à jour le prix payé avec le prix de l'événement
-            event_price = registration.event.price if registration.event.price else 0
-            registration.price_paid = event_price
-            print(f"🔍 DEBUG: _process_test_payment - Mise à jour price_paid: {event_price}€")
+            # 💰 CRITIQUE: Mettre à jour le prix payé selon le type de billet
+            if registration.ticket_type:
+                # Utiliser le prix du type de billet
+                if registration.ticket_type.is_discount_active and registration.ticket_type.discount_price is not None:
+                    price_paid = registration.ticket_type.discount_price
+                else:
+                    price_paid = registration.ticket_type.price
+                print(f"🔍 DEBUG: _process_test_payment - Prix du type de billet: {price_paid}€")
+            else:
+                # Utiliser le prix par défaut de l'événement
+                price_paid = registration.event.price if registration.event.price else 0
+                print(f"🔍 DEBUG: _process_test_payment - Prix par défaut: {price_paid}€")
+            
+            registration.price_paid = price_paid
             
             # Confirmer l'inscription si capacité disponible
             if registration.status in ['pending', 'waitlisted']:
