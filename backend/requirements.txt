@@ -60,3 +60,8 @@ scipy==1.11.1
 
 # 🔧 DÉPENDANCES SYSTÈME (OPTIONNELLES)
 psycopg2-binary==2.9.7  # Alternative à mysqlclient pour PostgreSQL
+
+# 🚀 DÉPLOIEMENT ET PRODUCTION
+gunicorn==21.2.0
+dj-database-url==2.1.0
+whitenoise==6.6.0

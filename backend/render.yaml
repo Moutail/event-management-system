@@ -1,0 +1,134 @@
+services:
+  - type: web
+    name: event-management-backend
+    env: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --noinput
+      python manage.py migrate
+    startCommand: gunicorn event_management.wsgi:application
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "event-management-backend.onrender.com,localhost,127.0.0.1"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: event-management-db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        value: "redis://redis:6379/0"
+      - key: CELERY_RESULT_BACKEND
+        value: "redis://redis:6379/0"
+      - key: EMAIL_HOST
+        value: "smtp.gmail.com"
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        value: "your-email@gmail.com"
+      - key: EMAIL_HOST_PASSWORD
+        value: "your-app-password"
+      - key: DEFAULT_FROM_EMAIL
+        value: "noreply@eventmanagement.com"
+      - key: STRIPE_PUBLIC_KEY
+        value: "pk_live_your_stripe_public_key"
+      - key: STRIPE_SECRET_KEY
+        value: "sk_live_your_stripe_secret_key"
+      - key: TWILIO_ACCOUNT_SID
+        value: "your_twilio_account_sid"
+      - key: TWILIO_AUTH_TOKEN
+        value: "your_twilio_auth_token"
+      - key: TWILIO_FROM_NUMBER
+        value: "your_twilio_phone_number"
+      - key: GOOGLE_OAUTH2_CLIENT_ID
+        value: "your_google_client_id"
+      - key: GOOGLE_OAUTH2_CLIENT_SECRET
+        value: "your_google_client_secret"
+      - key: FACEBOOK_OAUTH2_CLIENT_ID
+        value: "your_facebook_app_id"
+      - key: FACEBOOK_OAUTH2_CLIENT_SECRET
+        value: "your_facebook_app_secret"
+      - key: YOUTUBE_API_KEY
+        value: "your_youtube_api_key"
+      - key: ZOOM_ACCOUNT_ID
+        value: "your_zoom_account_id"
+      - key: ZOOM_CLIENT_ID
+        value: "your_zoom_client_id"
+      - key: ZOOM_CLIENT_SECRET
+        value: "your_zoom_client_secret"
+
+  - type: worker
+    name: event-management-celery-worker
+    env: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+    startCommand: celery -A event_management worker --loglevel=info
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "event-management-backend.onrender.com,localhost,127.0.0.1"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: event-management-db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        value: "redis://redis:6379/0"
+      - key: CELERY_RESULT_BACKEND
+        value: "redis://redis:6379/0"
+      - key: EMAIL_HOST
+        value: "smtp.gmail.com"
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USE_TLS
+        value: "True"
+      - key: EMAIL_HOST_USER
+        value: "your-email@gmail.com"
+      - key: EMAIL_HOST_PASSWORD
+        value: "your-app-password"
+      - key: DEFAULT_FROM_EMAIL
+        value: "noreply@eventmanagement.com"
+      - key: TWILIO_ACCOUNT_SID
+        value: "your_twilio_account_sid"
+      - key: TWILIO_AUTH_TOKEN
+        value: "your_twilio_auth_token"
+      - key: TWILIO_FROM_NUMBER
+        value: "your_twilio_phone_number"
+
+  - type: worker
+    name: event-management-celery-beat
+    env: python
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+    startCommand: celery -A event_management beat --loglevel=info
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "event-management-backend.onrender.com,localhost,127.0.0.1"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: event-management-db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        value: "redis://redis:6379/0"
+      - key: CELERY_RESULT_BACKEND
+        value: "redis://redis:6379/0"
+
+databases:
+  - name: event-management-db
+    plan: free
+
+  - name: redis
+    plan: free

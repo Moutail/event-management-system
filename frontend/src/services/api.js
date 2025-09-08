@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Configuration de base d'Axios
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -385,7 +385,7 @@ export const getImageUrl = (imagePath) => {
   }
   
   // Construire l'URL correcte pour les images (pas via l'API)
-  const BASE_URL = 'http://localhost:8001';
+  const BASE_URL = process.env.REACT_APP_BASE_URL || 'http://localhost:8000';
   
   // Si le chemin commence par /media/, l'utiliser directement
   if (imagePath.startsWith('/media/')) {
