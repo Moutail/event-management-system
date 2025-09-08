@@ -1,3 +1,1 @@
-web: gunicorn event_management.wsgi:application
-worker: celery -A event_management worker --loglevel=info
-beat: celery -A event_management beat --loglevel=info
+web: gunicorn event_management.wsgi:application --bind 0.0.0.0:$PORT
