@@ -49,9 +49,9 @@ urlpatterns = [
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
-    # 🔐 AUTHENTIFICATION SOCIALE
-    path('auth/google/', views.google_auth, name='google_auth'),
-    path('auth/facebook/', views.facebook_auth, name='facebook_auth'),
+    # 🔐 AUTHENTIFICATION SOCIALE (désactivée temporairement)
+    # path('auth/google/', views.google_auth, name='google_auth'),
+    # path('auth/facebook/', views.facebook_auth, name='facebook_auth'),
     path('refund/<int:refund_request_id>/process/', process_refund_view, name='process_refund'),
     # Nouvelles routes pour les remboursements
     path('refunds/<int:refund_id>/approve/', approve_refund, name='approve_refund'),
@@ -64,23 +64,23 @@ urlpatterns = [
     path('admin/analytics/', platform_analytics, name='admin_analytics'),
     path('admin/moderation/', pending_moderation, name='admin_moderation'),
     
-    # Nouvelles routes Super Admin
-    path('admin/global_stats/', views.super_admin_global_stats, name='super_admin_global_stats'),
-    path('admin/analytics_advanced/', views.super_admin_analytics, name='super_admin_analytics'),
-    path('admin/users/', views.super_admin_users_list, name='super_admin_users_list'),
-    path('admin/create_user/', views.super_admin_create_user, name='super_admin_create_user'),
-    path('admin/manage_user/', views.super_admin_manage_user, name='super_admin_manage_user'),
+    # Nouvelles routes Super Admin (désactivées temporairement)
+    # path('admin/global_stats/', views.super_admin_global_stats, name='super_admin_global_stats'),
+    # path('admin/analytics_advanced/', views.super_admin_analytics, name='super_admin_analytics'),
+    # path('admin/users/', views.super_admin_users_list, name='super_admin_users_list'),
+    # path('admin/create_user/', views.super_admin_create_user, name='super_admin_create_user'),
+    # path('admin/manage_user/', views.super_admin_manage_user, name='super_admin_manage_user'),
     
     # Routes pour la gestion complète des événements
     path('admin/events/<int:event_id>/detail/', super_admin_event_detail, name='super_admin_event_detail'),
     path('admin/events/<int:event_id>/reject/', super_admin_reject_event, name='super_admin_reject_event'),
     path('admin/events/<int:event_id>/delete/', super_admin_delete_event, name='super_admin_delete_event'),
     
-    # Routes pour catégories et tags
-    path('categories_management/', views.categories_list, name='categories_list'),
-    path('categories_management/<int:pk>/', views.category_detail, name='category_detail'),
-    path('tags_management/', views.tags_list, name='tags_list'),
-    path('tags_management/<int:pk>/', views.tag_detail, name='tag_detail'),
+    # Routes pour catégories et tags (désactivées temporairement)
+    # path('categories_management/', views.categories_list, name='categories_list'),
+    # path('categories_management/<int:pk>/', views.category_detail, name='category_detail'),
+    # path('tags_management/', views.tags_list, name='tags_list'),
+    # path('tags_management/<int:pk>/', views.tag_detail, name='tag_detail'),
     
     # Routes pour la gestion des remboursements
     path('admin/refunds/', super_admin_refunds_list, name='super_admin_refunds_list'),
@@ -92,8 +92,8 @@ urlpatterns = [
     path('organizer/refunds/<int:refund_id>/process/', process_refund_request, name='process_refund_request'),
     path('organizer/bulk_process_refunds/', organizer_bulk_process_refunds, name='organizer_bulk_process_refunds'),
     
-    # 🆕 NOUVELLES ROUTES POUR LA GESTION DES REMBOURSEMENTS D'ÉVÉNEMENTS ANNULÉS
-    path('organizer/events/<int:event_id>/create_missing_refunds/', views.create_missing_refunds_for_cancelled_event, name='create_missing_refunds_for_cancelled_event'),
+    # 🆕 NOUVELLES ROUTES POUR LA GESTION DES REMBOURSEMENTS D'ÉVÉNEMENTS ANNULÉS (désactivées temporairement)
+    # path('organizer/events/<int:event_id>/create_missing_refunds/', views.create_missing_refunds_for_cancelled_event, name='create_missing_refunds_for_cancelled_event'),
 
     # Routes pour la gestion des inscriptions en attente
     path('admin/pending_registrations/', pending_registrations, name='pending_registrations'),
@@ -101,13 +101,13 @@ urlpatterns = [
     path('admin/reject_registration/', reject_registration, name='reject_registration'),
     path('admin/bulk_confirm_registrations/', bulk_confirm_registrations, name='bulk_confirm_registrations'),
     
-    # Routes pour l'export des inscriptions (Super Admin)
-    path('admin/events/<int:event_id>/export_csv/', views.super_admin_export_registrations_csv, name='super_admin_export_csv'),
-    path('admin/events/<int:event_id>/export_excel/', views.super_admin_export_registrations_excel, name='super_admin_export_excel'),
+    # Routes pour l'export des inscriptions (Super Admin) (désactivées temporairement)
+    # path('admin/events/<int:event_id>/export_csv/', views.super_admin_export_registrations_csv, name='super_admin_export_csv'),
+    # path('admin/events/<int:event_id>/export_excel/', views.super_admin_export_registrations_excel, name='super_admin_export_excel'),
     
-    # Routes pour la gestion de la liste d'attente (organisateurs)
-    path('registrations/<int:registration_id>/approve_waitlist/', views.approve_waitlist_registration, name='approve_waitlist'),
-    path('registrations/<int:registration_id>/reject_waitlist/', views.reject_waitlist_registration, name='reject_waitlist'),
+    # Routes pour la gestion de la liste d'attente (organisateurs) (désactivées temporairement)
+    # path('registrations/<int:registration_id>/approve_waitlist/', views.approve_waitlist_registration, name='approve_waitlist'),
+    # path('registrations/<int:registration_id>/reject_waitlist/', views.reject_waitlist_registration, name='reject_waitlist'),
     
     # Route pour la santé du système
     path('admin/system_health/', system_health_check, name='system_health_check'),
@@ -131,12 +131,12 @@ urlpatterns = [
     
     # Route de test simple pour vérifier la connexion
     
-    # Route pour la vérification d'accès au stream
-    path('events/<int:event_id>/verify-stream-access/', views.verify_stream_access, name='verify_stream_access'),
+    # Route pour la vérification d'accès au stream (désactivées temporairement)
+    # path('events/<int:event_id>/verify-stream-access/', views.verify_stream_access, name='verify_stream_access'),
     
-    # Route pour le formulaire d'accès au stream
-    path('events/<int:event_id>/stream-access-form/', views.get_stream_access_form, name='get_stream_access_form'),
-    path('test/', views.test_connection, name='test_connection'),
+    # Route pour le formulaire d'accès au stream (désactivées temporairement)
+    # path('events/<int:event_id>/stream-access-form/', views.get_stream_access_form, name='get_stream_access_form'),
+    # path('test/', views.test_connection, name='test_connection'),
     
     # 🎥 NOUVELLES ROUTES POUR LE STREAMING
     # Gestion des streams pour événements virtuels
