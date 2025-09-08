@@ -1,6 +1,2 @@
-# Package views pour events
-from .views import *
-from .admin_views import *
-from .ai_views import *
-from .streaming_views import *
+# Package views pour events - seulement cron_views
 from .cron_views import trigger_notifications, health_check
