@@ -9,18 +9,18 @@ Fonctionnalités :
 """
 
 import logging
-import numpy as np
-import pandas as pd
+# import numpy as np  # Commenté pour déploiement Render
+# import pandas as pd  # Commenté pour déploiement Render
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 from django.db.models import Q, Count, Avg, Sum, F, Min, Max, StdDev
 from django.utils import timezone
 from django.conf import settings
-from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, r2_score, accuracy_score
-import joblib
+# from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier  # Commenté pour déploiement Render
+# from sklearn.preprocessing import StandardScaler, LabelEncoder  # Commenté pour déploiement Render
+# from sklearn.model_selection import train_test_split  # Commenté pour déploiement Render
+# from sklearn.metrics import mean_absolute_error, r2_score, accuracy_score  # Commenté pour déploiement Render
+# import joblib  # Commenté pour déploiement Render
 import os
 import json
 
