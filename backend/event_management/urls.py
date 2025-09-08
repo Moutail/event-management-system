@@ -5,12 +5,13 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from events.cron_views import trigger_notifications, health_check
+from events.cron_views import trigger_notifications, health_check, test_cron
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('events.urls')),
     path('cron/notifications/', trigger_notifications, name='cron_notifications'),
+    path('cron/test/', test_cron, name='cron_test'),
     path('health/', health_check, name='health_check'),
 ]
 

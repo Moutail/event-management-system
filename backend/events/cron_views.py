@@ -21,21 +21,35 @@ def trigger_notifications(request):
     Utilisé par les services cron externes
     """
     try:
-        # Exécuter la commande de notifications
-        call_command('send_notifications_cron')
+        # Exécuter la commande de notifications en mode silencieux
+        from io import StringIO
+        import sys
+        
+        # Capturer la sortie pour éviter les logs excessifs
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
+        
+        try:
+            call_command('send_notifications_cron', verbosity=0)
+            output = sys.stdout.getvalue()
+        finally:
+            sys.stdout = old_stdout
+        
+        # Log minimal
+        logger.info("✅ Notifications cron exécutées avec succès")
         
         return JsonResponse({
             'status': 'success',
-            'message': 'Notifications envoyées avec succès',
-            'timestamp': str(timezone.now())
+            'message': 'OK',
+            'timestamp': timezone.now().isoformat()
         })
         
     except Exception as e:
-        logger.error(f"❌ Erreur lors du déclenchement des notifications: {e}")
+        logger.error(f"❌ Erreur cron: {str(e)}")
         return JsonResponse({
             'status': 'error',
-            'message': str(e),
-            'timestamp': str(timezone.now())
+            'message': 'Internal error',
+            'timestamp': timezone.now().isoformat()
         }, status=500)
 
 @csrf_exempt
@@ -47,4 +61,16 @@ def health_check(request):
     return JsonResponse({
         'status': 'healthy',
         'service': 'event-management-notifications'
+    })
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def test_cron(request):
+    """
+    Test simple pour vérifier que le cron fonctionne
+    """
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'Cron endpoint is working',
+        'timestamp': timezone.now().isoformat()
     })

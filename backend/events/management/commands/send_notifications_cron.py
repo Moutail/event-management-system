@@ -14,7 +14,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         now = timezone.now()
-        self.stdout.write(f"🕐 Exécution des notifications à {now}")
+        verbosity = options.get('verbosity', 1)
+        
+        if verbosity > 0:
+            self.stdout.write(f"🕐 Exécution des notifications à {now}")
         
         try:
             # Envoyer les rappels
@@ -24,11 +27,15 @@ class Command(BaseCommand):
             self.send_thank_you(now)
             self.process_auto_refunds(now)
             
-            self.stdout.write(self.style.SUCCESS("✅ Notifications traitées avec succès"))
+            if verbosity > 0:
+                self.stdout.write(self.style.SUCCESS("✅ Notifications traitées avec succès"))
+            else:
+                logger.info("✅ Notifications cron traitées avec succès")
             
         except Exception as e:
             logger.error(f"❌ Erreur lors de l'envoi des notifications: {e}")
-            self.stdout.write(self.style.ERROR(f"❌ Erreur: {e}"))
+            if verbosity > 0:
+                self.stdout.write(self.style.ERROR(f"❌ Erreur: {e}"))
 
     def _send_email(self, subject: str, to_email: str, template_html: str, template_txt: str, context: dict):
         """Envoie un email avec template HTML et texte"""
