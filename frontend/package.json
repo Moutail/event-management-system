@@ -30,7 +30,7 @@
   },
   "scripts": {
     "start": "set PORT=3001 && craco start",
-    "build": "craco build",
+    "build": "npm install --legacy-peer-deps && craco build",
     "test": "craco test",
     "eject": "react-scripts eject"
   },
@@ -56,5 +56,9 @@
   "devDependencies": {
     "@craco/craco": "^7.1.0",
     "ajv": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }
