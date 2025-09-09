@@ -36,6 +36,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Configuration CORS pour la production
 CORS_ALLOWED_ORIGINS = [
+    "https://event-management-system-three-bay.vercel.app",
     "https://event-management-frontend.vercel.app",
     "https://event-management-frontend-git-main.vercel.app",
     "https://event-management-frontend-git-develop.vercel.app",
