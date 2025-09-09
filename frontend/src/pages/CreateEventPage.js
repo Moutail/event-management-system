@@ -163,7 +163,8 @@ const CreateEventPage = () => {
     
     const formData = new FormData();
     
-    // 🎯 NOUVEAU : Gérer la désactivation des billets par défaut
+    // 🎯 NOUVEAU : Gérer la désactivation des billets par défaut - TEMPORAIREMENT DÉSACTIVÉ
+    /*
     if (disableDefaultTickets && ticketTypes.length > 0) {
       // Si les billets par défaut sont désactivés, forcer les paramètres
       data.place_type = 'unlimited';  // Pas de limite globale
@@ -171,6 +172,7 @@ const CreateEventPage = () => {
       data.is_free = true;            // Gratuit par défaut (les prix sont dans les types)
       data.price = 0;                 // Prix par défaut à 0
     }
+    */
     
     // Ajouter les champs de base
     Object.keys(data).forEach((key) => {
@@ -244,7 +246,8 @@ const CreateEventPage = () => {
       console.log('Envoi de la requête...');
       const event = await dispatch(createEvent(formData)).unwrap();
       console.log('✅ Succès:', event);
-      // Créer les types de billets si fournis
+      // Créer les types de billets si fournis - TEMPORAIREMENT DÉSACTIVÉ
+      /*
       if (Array.isArray(ticketTypes) && ticketTypes.length > 0) {
         for (const tt of ticketTypes) {
           const payload = {
@@ -260,6 +263,7 @@ const CreateEventPage = () => {
           try { await eventAPI.createTicketType(event.id, payload); } catch (_) {}
         }
       }
+      */
 
       // Créer les types de sessions si fournis
       if (Array.isArray(sessionTypes) && sessionTypes.length > 0) {
@@ -429,7 +433,8 @@ const CreateEventPage = () => {
               <Divider sx={{ my: 2 }} />
             </Grid>
 
-            {/* Types de billets */}
+            {/* Types de billets - TEMPORAIREMENT DÉSACTIVÉ */}
+            {/* 
             <Grid item xs={12}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6" gutterBottom>
@@ -517,6 +522,7 @@ const CreateEventPage = () => {
                 </Box>
               )}
             </Grid>
+            */}
 
             {/* Types de sessions */}
             <Grid item xs={12}>

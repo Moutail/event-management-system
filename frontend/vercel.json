@@ -26,12 +26,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "env": {
-    "REACT_APP_API_URL": "https://event-management-backend-7uux.onrender.com/api",
-    "REACT_APP_BASE_URL": "https://event-management-backend-7uux.onrender.com",
-    "REACT_APP_STRIPE_PK": "@stripe_public_key",
-    "REACT_APP_GOOGLE_CLIENT_ID": "@google_client_id",
-    "REACT_APP_FACEBOOK_APP_ID": "@facebook_app_id"
-  }
+  ]
 }
