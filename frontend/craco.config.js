@@ -8,7 +8,23 @@ module.exports = {
         }
       });
       
+      // Configuration pour Vercel
+      webpackConfig.resolve = webpackConfig.resolve || {};
+      webpackConfig.resolve.fallback = {
+        ...webpackConfig.resolve.fallback,
+        "fs": false,
+        "path": false,
+        "os": false
+      };
+      
       return webpackConfig;
     },
   },
+  // Configuration pour Vercel
+  babel: {
+    presets: [
+      ['@babel/preset-env', { targets: { node: 'current' } }],
+      ['@babel/preset-react', { runtime: 'automatic' }]
+    ]
+  }
 };

@@ -14,8 +14,13 @@ Votre frontend est déjà configuré pour Vercel avec :
 
 Assurez-vous que votre code est poussé sur GitHub :
 ```bash
+# Test local avant déploiement
+cd frontend
+node test-build.js
+
+# Si le test réussit, pousser sur GitHub
 git add .
-git commit -m "Configuration Vercel pour déploiement frontend"
+git commit -m "Configuration Vercel corrigée pour CRACO"
 git push origin main
 ```
 
@@ -125,12 +130,26 @@ Les requêtes `/api/*` sont automatiquement redirigées vers votre backend Rende
 
 ## 🚨 Résolution de Problèmes
 
-### **Erreur de Build**
+### **Erreur de Build CRACO/cross-spawn**
+
+Si vous rencontrez l'erreur `Cannot find module './lib/parse'` :
+
+```bash
+# Solution 1: Nettoyer et rebuilder avec CRACO
+rm -rf node_modules package-lock.json
+npm ci --legacy-peer-deps
+npm run build
+
+# Solution 2: Test de build local
+node test-build.js
+```
+
+### **Erreur de Build Générale**
 
 ```bash
 # Nettoyer et rebuilder
 rm -rf node_modules package-lock.json
-npm install
+npm ci --legacy-peer-deps
 npm run build
 ```
 
