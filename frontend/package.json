@@ -30,6 +30,7 @@
   "scripts": {
     "start": "set PORT=3001 && craco start",
     "build": "craco build",
+    "build:vercel": "craco build",
     "test": "craco test",
     "eject": "react-scripts eject"
   },
