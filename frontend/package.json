@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@craco/craco": "^7.1.0",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.14.19",
@@ -29,9 +28,9 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "set PORT=3001 && craco start",
-    "build": "npm install --legacy-peer-deps && craco build",
-    "test": "craco test",
+    "start": "set PORT=3001 && react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -54,7 +53,6 @@
   },
   "proxy": "http://localhost:8000",
   "devDependencies": {
-    "@craco/craco": "^7.1.0",
     "ajv": "^8.0.0"
   },
   "engines": {
