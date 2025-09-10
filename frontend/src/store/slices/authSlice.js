@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { authAPI } from '../../services/api';
+import sessionManager from '../../utils/sessionManager';
 
 // Actions asynchrones
 export const login = createAsyncThunk(
@@ -30,8 +31,8 @@ export const login = createAsyncThunk(
         user: userSession.user?.username
       });
 
-      localStorage.setItem(`auth_session_${sessionId}`, JSON.stringify(userSession));
-      sessionStorage.setItem('current_session_id', sessionId);
+      sessionManager.saveSessionData(sessionId, userSession);
+      sessionManager.setCurrentSessionId(sessionId);
 
       console.log('✅ [AUTH_SLICE] Session sauvegardée avec succès');
       console.log('🔍 [AUTH_SLICE] localStorage après sauvegarde:', {

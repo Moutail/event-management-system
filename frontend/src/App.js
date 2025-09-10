@@ -10,6 +10,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { fr, enUS, es } from 'date-fns/locale';
+import { validateConfig, logConfig } from './config/vercelConfig';
 
 // Redux actions
 import { hideSnackbar } from './store/slices/uiSlice';
@@ -91,6 +92,13 @@ function AppRoutes() {
   useEffect(() => {
     console.log('🔧 [APP] useEffect d\'initialisation déclenché');
     console.log('🔍 [APP] État actuel:', { isAuthenticated, initialized });
+    
+    // Valider la configuration Vercel
+    const configValidation = validateConfig();
+    if (!configValidation.isValid) {
+      console.error('❌ [APP] Erreurs de configuration:', configValidation.errors);
+    }
+    logConfig();
     
     const initializeAuth = async () => {
       console.log('🔄 [APP] initializeAuth() démarré');

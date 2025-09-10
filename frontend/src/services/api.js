@@ -1,4 +1,5 @@
 import axios from 'axios';
+import sessionManager from '../utils/sessionManager';
 
 // Configuration de base d'Axios
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
@@ -13,7 +14,7 @@ const api = axios.create({
 // Fonction pour récupérer le token de la session actuelle
 const getCurrentSessionToken = () => {
   console.log('🔍 [API] getCurrentSessionToken() appelé');
-  const currentSessionId = sessionStorage.getItem('current_session_id');
+  const currentSessionId = sessionManager.getCurrentSessionId();
   console.log('🔍 [API] current_session_id récupéré:', currentSessionId);
   
   if (!currentSessionId) {
@@ -21,7 +22,7 @@ const getCurrentSessionToken = () => {
     return null;
   }
   
-  const sessionData = localStorage.getItem(`auth_session_${currentSessionId}`);
+  const sessionData = sessionManager.getSessionData(currentSessionId);
   console.log('🔍 [API] sessionData récupéré:', sessionData ? 'OUI' : 'NON');
   
   if (!sessionData) {
@@ -29,18 +30,12 @@ const getCurrentSessionToken = () => {
     return null;
   }
   
-  try {
-    const parsed = JSON.parse(sessionData);
-    console.log('✅ [API] Token récupéré pour session:', {
-      sessionId: currentSessionId,
-      user: parsed.user?.username,
-      hasAccessToken: !!parsed.access
-    });
-    return parsed.access;
-  } catch (error) {
-    console.error('❌ [API] Erreur parsing sessionData:', error);
-    return null;
-  }
+  console.log('✅ [API] Token récupéré pour session:', {
+    sessionId: currentSessionId,
+    user: sessionData.user?.username,
+    hasAccessToken: !!sessionData.access
+  });
+  return sessionData.access;
 };
 
 // Intercepteur pour ajouter le token d'authentification
