@@ -1,12 +1,17 @@
 module.exports = {
   webpack: {
     configure: (webpackConfig) => {
-      // Désactiver les avertissements de source maps
-      webpackConfig.module.rules.forEach((rule) => {
-        if (rule.use && rule.use.some(use => use.loader && use.loader.includes('source-map-loader'))) {
-          rule.use = rule.use.filter(use => !use.loader || !use.loader.includes('source-map-loader'));
-        }
-      });
+      // Désactiver complètement les source maps en production
+      if (process.env.NODE_ENV === 'production' || process.env.GENERATE_SOURCEMAP === 'false') {
+        webpackConfig.devtool = false;
+        
+        // Supprimer tous les loaders de source maps
+        webpackConfig.module.rules.forEach((rule) => {
+          if (rule.use && rule.use.some(use => use.loader && use.loader.includes('source-map-loader'))) {
+            rule.use = rule.use.filter(use => !use.loader || !use.loader.includes('source-map-loader'));
+          }
+        });
+      }
       
       // Configuration pour Vercel - optimisations
       webpackConfig.resolve = webpackConfig.resolve || {};
