@@ -54,7 +54,7 @@ def reverse_create_superadmin(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('events', '0001_initial'),
+        ('events', '0024_tickettype_enable_waitlist'),
     ]
 
     operations = [
