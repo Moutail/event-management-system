@@ -147,22 +147,32 @@ const Header = () => {
           Gestion d'Événements
         </Typography>
 
-        {/* Menu mobile pour utilisateurs non connectés */}
-        {!user && (
-          <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
-            <IconButton
-              color="inherit"
-              onClick={() => setMobileMenuOpen(true)}
-              sx={{
-                '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.15)',
-                },
-              }}
-            >
-              <MenuIcon />
-            </IconButton>
-          </Box>
-        )}
+        {/* Menu mobile - visible sur mobile pour tous les utilisateurs */}
+        <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
+          <IconButton
+            color="inherit"
+            onClick={() => dispatch(toggleDarkMode())}
+            sx={{
+              '&:hover': {
+                backgroundColor: 'rgba(255,255,255,0.15)',
+              },
+            }}
+          >
+            {darkMode ? <Brightness7 /> : <Brightness4 />}
+          </IconButton>
+          
+          <IconButton
+            color="inherit"
+            onClick={() => setMobileMenuOpen(true)}
+            sx={{
+              '&:hover': {
+                backgroundColor: 'rgba(255,255,255,0.15)',
+              },
+            }}
+          >
+            <MenuIcon />
+          </IconButton>
+        </Box>
 
         {/* Boutons visibles sur desktop */}
         <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
@@ -285,50 +295,25 @@ const Header = () => {
           )}
         </Box>
 
-        {/* Menu mobile */}
-        <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
-          <IconButton
-            color="inherit"
-            onClick={() => setMobileMenuOpen(true)}
-            sx={{
-              '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.15)',
-              },
-            }}
-          >
-            <MenuIcon />
-          </IconButton>
 
-          <IconButton
-            color="inherit"
-            onClick={() => dispatch(toggleDarkMode())}
-            sx={{
-              '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.15)',
-              },
-            }}
-          >
-            {darkMode ? <Brightness7 /> : <Brightness4 />}
-          </IconButton>
-        </Box>
-
-        {/* Avatar et menu utilisateur - Pour TOUS les utilisateurs connectés */}
+        {/* Avatar et menu utilisateur - Pour TOUS les utilisateurs connectés - Desktop seulement */}
         {user && (
-          <IconButton
-            size="large"
-            aria-label="account of current user"
-            aria-controls="menu-appbar"
-            aria-haspopup="true"
-            onClick={handleMenu}
-            color="inherit"
-            sx={{
-              '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                transform: 'scale(1.05)',
-              },
-              transition: 'all 0.2s ease-in-out',
-            }}
-          >
+          <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
+            <IconButton
+              size="large"
+              aria-label="account of current user"
+              aria-controls="menu-appbar"
+              aria-haspopup="true"
+              onClick={handleMenu}
+              color="inherit"
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                  transform: 'scale(1.05)',
+                },
+                transition: 'all 0.2s ease-in-out',
+              }}
+            >
             {user?.profile_picture ? (
               <Avatar
                 src={user.profile_picture}
@@ -347,6 +332,7 @@ const Header = () => {
               </Avatar>
             )}
           </IconButton>
+          </Box>
         )}
 
         {/* Menu utilisateur */}
@@ -370,6 +356,7 @@ const Header = () => {
               minWidth: 200,
               boxShadow: '0 8px 25px rgba(0,0,0,0.15)',
               borderRadius: 2,
+              display: { xs: 'none', md: 'block' },
             },
           }}
         >
