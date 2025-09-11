@@ -31,6 +31,8 @@ import {
   Logout as LogoutIcon,
   Info as InfoIcon,
   ContactSupport as ContactIcon,
+  Login as LoginIcon,
+  PersonAdd as PersonAddIcon,
 } from '@mui/icons-material';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -117,7 +119,7 @@ const Header = () => {
           aria-label="open drawer"
           edge="start"
           onClick={() => dispatch(toggleSidebar())}
-          sx={{ mr: 2, display: { xs: 'none', md: 'flex' } }}
+          sx={{ mr: 2, display: { xs: 'flex', md: 'flex' } }}
         >
           <MenuIcon />
         </IconButton>
@@ -144,6 +146,23 @@ const Header = () => {
         >
           Gestion d'Événements
         </Typography>
+
+        {/* Menu mobile pour utilisateurs non connectés */}
+        {!user && (
+          <Box sx={{ display: { xs: 'flex', md: 'none' }, alignItems: 'center', gap: 1 }}>
+            <IconButton
+              color="inherit"
+              onClick={() => setMobileMenuOpen(true)}
+              sx={{
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                },
+              }}
+            >
+              <MenuIcon />
+            </IconButton>
+          </Box>
+        )}
 
         {/* Boutons visibles sur desktop */}
         <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
@@ -438,6 +457,135 @@ const Header = () => {
             </List>
           </Box>
         </Drawer>
+
+        {/* Drawer mobile pour utilisateurs non connectés */}
+        {!user && (
+          <Drawer
+            anchor="right"
+            open={mobileMenuOpen}
+            onClose={handleMobileMenuClose}
+            PaperProps={{
+              sx: {
+                width: 280,
+                background: 'linear-gradient(135deg, rgba(108,99,255,0.95) 0%, rgba(34,211,238,0.95) 100%)',
+                color: '#ffffff',
+              },
+            }}
+          >
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h6" sx={{ mb: 2, textAlign: 'center', fontWeight: 600 }}>
+                Menu
+              </Typography>
+              <List>
+                <ListItem 
+                  button 
+                  onClick={() => {
+                    navigate('/');
+                    handleMobileMenuClose();
+                  }}
+                  sx={{
+                    borderRadius: 2,
+                    mb: 1,
+                    '&:hover': {
+                      backgroundColor: 'rgba(255,255,255,0.1)',
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
+                    <EventIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="Accueil" />
+                </ListItem>
+                
+                <Divider sx={{ borderColor: 'rgba(255,255,255,0.2)', my: 1 }} />
+                
+                <ListItem 
+                  button 
+                  onClick={() => {
+                    navigate('/about');
+                    handleMobileMenuClose();
+                  }}
+                  sx={{
+                    borderRadius: 2,
+                    mb: 1,
+                    '&:hover': {
+                      backgroundColor: 'rgba(255,255,255,0.1)',
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
+                    <InfoIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="À propos" />
+                </ListItem>
+                
+                <ListItem 
+                  button 
+                  onClick={() => {
+                    navigate('/contact');
+                    handleMobileMenuClose();
+                  }}
+                  sx={{
+                    borderRadius: 2,
+                    mb: 1,
+                    '&:hover': {
+                      backgroundColor: 'rgba(255,255,255,0.1)',
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
+                    <ContactIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="Contact" />
+                </ListItem>
+                
+                <Divider sx={{ borderColor: 'rgba(255,255,255,0.2)', my: 1 }} />
+                
+                <ListItem 
+                  button 
+                  onClick={() => {
+                    navigate('/login');
+                    handleMobileMenuClose();
+                  }}
+                  sx={{
+                    borderRadius: 2,
+                    mb: 1,
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
+                    <LoginIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="Se connecter" />
+                </ListItem>
+                
+                <ListItem 
+                  button 
+                  onClick={() => {
+                    navigate('/register');
+                    handleMobileMenuClose();
+                  }}
+                  sx={{
+                    borderRadius: 2,
+                    mb: 1,
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255,255,255,0.3)',
+                    },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
+                    <PersonAddIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="S'inscrire" />
+                </ListItem>
+              </List>
+            </Box>
+          </Drawer>
+        )}
       </Toolbar>
     </AppBar>
   );
