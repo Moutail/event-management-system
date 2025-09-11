@@ -426,3 +426,356 @@ def organizer_bulk_process_refunds(request):
             refund.save()
     
     return Response({'message': f'{len(refunds)} refunds {action}d'})
+
+
+# ===== VUES MANQUANTES POUR CORRIGER LES ERREURS 404 =====
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsSuperAdmin])
+def super_admin_global_stats(request):
+    """Statistiques globales pour Super Admin"""
+    if request.method == 'GET':
+        try:
+            total_users = User.objects.count()
+            total_events = Event.objects.count()
+            total_registrations = EventRegistration.objects.count()
+            
+            return Response({
+                'total_users': total_users,
+                'total_events': total_events,
+                'total_registrations': total_registrations,
+                'status': 'success'
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    return Response({'error': 'Method not allowed'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+@api_view(['GET'])
+@permission_classes([IsSuperAdmin])
+def super_admin_analytics(request):
+    """Analytics avancés pour Super Admin"""
+    try:
+        # Analytics de base
+        events_count = Event.objects.count()
+        registrations_count = EventRegistration.objects.count()
+        users_count = User.objects.count()
+        
+        return Response({
+            'events_count': events_count,
+            'registrations_count': registrations_count,
+            'users_count': users_count,
+            'status': 'success'
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsSuperAdmin])
+def super_admin_users_list(request):
+    """Liste des utilisateurs pour Super Admin"""
+    try:
+        users = User.objects.all()[:50]  # Limiter à 50 utilisateurs
+        users_data = []
+        
+        for user in users:
+            try:
+                profile = user.profile
+                users_data.append({
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': profile.role,
+                    'is_active': user.is_active,
+                    'date_joined': user.date_joined
+                })
+            except:
+                users_data.append({
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': 'unknown',
+                    'is_active': user.is_active,
+                    'date_joined': user.date_joined
+                })
+        
+        return Response({
+            'users': users_data,
+            'total': len(users_data),
+            'status': 'success'
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsSuperAdmin])
+def super_admin_create_user(request):
+    """Création d'utilisateur par Super Admin"""
+    try:
+        username = request.data.get('username')
+        email = request.data.get('email')
+        password = request.data.get('password')
+        role = request.data.get('role', 'participant')
+        
+        if not username or not email or not password:
+            return Response({
+                'error': 'Username, email et password sont requis'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Vérifier si l'utilisateur existe déjà
+        if User.objects.filter(username=username).exists():
+            return Response({
+                'error': 'Un utilisateur avec ce nom d\'utilisateur existe déjà'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if User.objects.filter(email=email).exists():
+            return Response({
+                'error': 'Un utilisateur avec cet email existe déjà'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Créer l'utilisateur
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password
+        )
+        
+        # Créer le profil
+        UserProfile.objects.create(
+            user=user,
+            role=role,
+            status_approval='approved'
+        )
+        
+        return Response({
+            'message': 'Utilisateur créé avec succès',
+            'user_id': user.id,
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET', 'POST', 'PUT', 'DELETE'])
+@permission_classes([IsSuperAdmin])
+def super_admin_manage_user(request, user_id=None):
+    """Gestion d'utilisateur par Super Admin"""
+    try:
+        if request.method == 'GET':
+            # Récupérer un utilisateur spécifique
+            user = get_object_or_404(User, id=user_id)
+            try:
+                profile = user.profile
+                return Response({
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': profile.role,
+                    'is_active': user.is_active,
+                    'date_joined': user.date_joined
+                })
+            except:
+                return Response({
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': 'unknown',
+                    'is_active': user.is_active,
+                    'date_joined': user.date_joined
+                })
+        
+        elif request.method == 'PUT':
+            # Mettre à jour un utilisateur
+            user = get_object_or_404(User, id=user_id)
+            user.username = request.data.get('username', user.username)
+            user.email = request.data.get('email', user.email)
+            user.is_active = request.data.get('is_active', user.is_active)
+            user.save()
+            
+            # Mettre à jour le profil si il existe
+            try:
+                profile = user.profile
+                profile.role = request.data.get('role', profile.role)
+                profile.save()
+            except:
+                pass
+            
+            return Response({'message': 'Utilisateur mis à jour avec succès'})
+        
+        elif request.method == 'DELETE':
+            # Supprimer un utilisateur
+            user = get_object_or_404(User, id=user_id)
+            user.delete()
+            return Response({'message': 'Utilisateur supprimé avec succès'})
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsSuperAdmin])
+def categories_list(request):
+    """Liste des catégories"""
+    try:
+        if request.method == 'GET':
+            categories = Category.objects.all()
+            categories_data = []
+            
+            for category in categories:
+                categories_data.append({
+                    'id': category.id,
+                    'name': category.name,
+                    'description': category.description,
+                    'color': category.color,
+                    'is_active': category.is_active
+                })
+            
+            return Response({
+                'categories': categories_data,
+                'total': len(categories_data),
+                'status': 'success'
+            })
+        
+        elif request.method == 'POST':
+            # Créer une nouvelle catégorie
+            name = request.data.get('name')
+            description = request.data.get('description', '')
+            color = request.data.get('color', '#1976d2')
+            
+            if not name:
+                return Response({
+                    'error': 'Le nom de la catégorie est requis'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            category = Category.objects.create(
+                name=name,
+                description=description,
+                color=color
+            )
+            
+            return Response({
+                'message': 'Catégorie créée avec succès',
+                'category_id': category.id,
+                'status': 'success'
+            })
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsSuperAdmin])
+def category_detail(request, pk):
+    """Détail d'une catégorie"""
+    try:
+        category = get_object_or_404(Category, pk=pk)
+        
+        if request.method == 'GET':
+            return Response({
+                'id': category.id,
+                'name': category.name,
+                'description': category.description,
+                'color': category.color,
+                'is_active': category.is_active,
+                'created_at': category.created_at
+            })
+        
+        elif request.method == 'PUT':
+            category.name = request.data.get('name', category.name)
+            category.description = request.data.get('description', category.description)
+            category.color = request.data.get('color', category.color)
+            category.is_active = request.data.get('is_active', category.is_active)
+            category.save()
+            
+            return Response({'message': 'Catégorie mise à jour avec succès'})
+        
+        elif request.method == 'DELETE':
+            category.delete()
+            return Response({'message': 'Catégorie supprimée avec succès'})
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsSuperAdmin])
+def tags_list(request):
+    """Liste des tags"""
+    try:
+        if request.method == 'GET':
+            tags = Tag.objects.all()
+            tags_data = []
+            
+            for tag in tags:
+                tags_data.append({
+                    'id': tag.id,
+                    'name': tag.name,
+                    'color': tag.color,
+                    'is_active': tag.is_active
+                })
+            
+            return Response({
+                'tags': tags_data,
+                'total': len(tags_data),
+                'status': 'success'
+            })
+        
+        elif request.method == 'POST':
+            # Créer un nouveau tag
+            name = request.data.get('name')
+            color = request.data.get('color', '#1976d2')
+            
+            if not name:
+                return Response({
+                    'error': 'Le nom du tag est requis'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            tag = Tag.objects.create(
+                name=name,
+                color=color
+            )
+            
+            return Response({
+                'message': 'Tag créé avec succès',
+                'tag_id': tag.id,
+                'status': 'success'
+            })
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsSuperAdmin])
+def tag_detail(request, pk):
+    """Détail d'un tag"""
+    try:
+        tag = get_object_or_404(Tag, pk=pk)
+        
+        if request.method == 'GET':
+            return Response({
+                'id': tag.id,
+                'name': tag.name,
+                'color': tag.color,
+                'is_active': tag.is_active,
+                'created_at': tag.created_at
+            })
+        
+        elif request.method == 'PUT':
+            tag.name = request.data.get('name', tag.name)
+            tag.color = request.data.get('color', tag.color)
+            tag.is_active = request.data.get('is_active', tag.is_active)
+            tag.save()
+            
+            return Response({'message': 'Tag mis à jour avec succès'})
+        
+        elif request.method == 'DELETE':
+            tag.delete()
+            return Response({'message': 'Tag supprimé avec succès'})
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

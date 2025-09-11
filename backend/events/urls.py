@@ -65,23 +65,23 @@ urlpatterns = [
     path('admin/analytics/', platform_analytics, name='admin_analytics'),
     path('admin/moderation/', pending_moderation, name='admin_moderation'),
     
-    # Nouvelles routes Super Admin (désactivées temporairement)
-    # path('admin/global_stats/', views.super_admin_global_stats, name='super_admin_global_stats'),
-    # path('admin/analytics_advanced/', views.super_admin_analytics, name='super_admin_analytics'),
-    # path('admin/users/', views.super_admin_users_list, name='super_admin_users_list'),
-    # path('admin/create_user/', views.super_admin_create_user, name='super_admin_create_user'),
-    # path('admin/manage_user/', views.super_admin_manage_user, name='super_admin_manage_user'),
+    # Nouvelles routes Super Admin (réactivées)
+    path('admin/global_stats/', views.super_admin_global_stats, name='super_admin_global_stats'),
+    path('admin/analytics_advanced/', views.super_admin_analytics, name='super_admin_analytics'),
+    path('admin/users/', views.super_admin_users_list, name='super_admin_users_list'),
+    path('admin/create_user/', views.super_admin_create_user, name='super_admin_create_user'),
+    path('admin/manage_user/', views.super_admin_manage_user, name='super_admin_manage_user'),
     
     # Routes pour la gestion complète des événements
     path('admin/events/<int:event_id>/detail/', super_admin_event_detail, name='super_admin_event_detail'),
     path('admin/events/<int:event_id>/reject/', super_admin_reject_event, name='super_admin_reject_event'),
     path('admin/events/<int:event_id>/delete/', super_admin_delete_event, name='super_admin_delete_event'),
     
-    # Routes pour catégories et tags (désactivées temporairement)
-    # path('categories_management/', views.categories_list, name='categories_list'),
-    # path('categories_management/<int:pk>/', views.category_detail, name='category_detail'),
-    # path('tags_management/', views.tags_list, name='tags_list'),
-    # path('tags_management/<int:pk>/', views.tag_detail, name='tag_detail'),
+    # Routes pour catégories et tags (réactivées)
+    path('categories_management/', views.categories_list, name='categories_list'),
+    path('categories_management/<int:pk>/', views.category_detail, name='category_detail'),
+    path('tags_management/', views.tags_list, name='tags_list'),
+    path('tags_management/<int:pk>/', views.tag_detail, name='tag_detail'),
     
     # Routes pour la gestion des remboursements
     path('admin/refunds/', super_admin_refunds_list, name='super_admin_refunds_list'),
@@ -113,8 +113,8 @@ urlpatterns = [
     # Route pour la santé du système
     path('admin/system_health/', system_health_check, name='system_health_check'),
     
-    # 🎯 ANALYTICS PRÉDICTIFS AVANCÉS
-    path('admin/predictive_analytics/', predictive_analytics_dashboard, name='predictive_analytics_dashboard'),
+    # 🎯 ANALYTICS PRÉDICTIFS AVANCÉS (désactivé temporairement)
+    # path('admin/predictive_analytics/', predictive_analytics_dashboard, name='predictive_analytics_dashboard'),
     path('admin/train_ml_models/', train_ml_models, name='train_ml_models'),
     path('admin/predict_fill_rate/', predict_event_fill_rate, name='predict_event_fill_rate'),
     path('admin/optimize_pricing/', optimize_event_pricing, name='optimize_event_pricing'),

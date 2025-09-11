@@ -13,7 +13,7 @@ class SimpleEventSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'short_description', 'event_type',
             'start_date', 'end_date', 'location', 'address', 'is_public',
-            'status', 'max_participants', 'current_registrations', 'price',
+            'status', 'max_capacity', 'current_registrations', 'price',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'current_registrations']

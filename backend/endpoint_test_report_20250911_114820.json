@@ -1,0 +1,29 @@
+{
+  "timestamp": "2025-09-11T11:48:02.085890",
+  "backend_analysis": {
+    "error": "JSON parsing failed"
+  },
+  "frontend_comparison": {},
+  "recommendations": [
+    {
+      "type": "warning",
+      "message": "Score de connectivité faible: 75.0%",
+      "action": "Vérifier la configuration des endpoints et les permissions"
+    }
+  ],
+  "summary": {
+    "total_endpoints": 0,
+    "successful_endpoints": 0,
+    "failed_endpoints": 0,
+    "connectivity_score": 75.0,
+    "pattern_issues": 0
+  },
+  "available_urls": {
+    "total": 225,
+    "api_urls": 204,
+    "urls": [
+      {
+        "pattern": "admin/",
+        "name": "index",
+        "full_pattern": "admin/",
+        "view": 

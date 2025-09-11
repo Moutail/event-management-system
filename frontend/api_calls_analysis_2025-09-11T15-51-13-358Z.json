@@ -1,0 +1,64 @@
+{
+  "timestamp": "2025-09-11T15:51:13.290Z",
+  "total_calls": 4,
+  "unique_urls": 3,
+  "calls": [
+    {
+      "url": "/api/streaming/${event.id}/join/",
+      "method": "POST",
+      "count": 2,
+      "files": [
+        {
+          "file": "src\\components\\VirtualEventDisplay.js",
+          "line": 206,
+          "code": "const response = await api.post(`/api/streaming/${event.id}/join/`);"
+        },
+        {
+          "file": "src\\components\\VirtualEventList.js",
+          "line": 213,
+          "code": "const response = await api.post(`/api/streaming/${event.id}/join/`);"
+        }
+      ]
+    },
+    {
+      "url": "/api/admin/events/${eventId}/export_csv/",
+      "method": "GET",
+      "count": 1,
+      "files": [
+        {
+          "file": "src\\components\\EventDetailModal.js",
+          "line": 124,
+          "code": "const response = await api.get(`/api/admin/events/${eventId}/export_csv/`, {"
+        }
+      ]
+    },
+    {
+      "url": "/api/admin/events/${eventId}/export_excel/",
+      "method": "GET",
+      "count": 1,
+      "files": [
+        {
+          "file": "src\\components\\EventDetailModal.js",
+          "line": 178,
+          "code": "const response = await api.get(`/api/admin/events/${eventId}/export_excel/`, {"
+        }
+      ]
+    }
+  ],
+  "by_method": {
+    "GET": 2,
+    "POST": 2
+  },
+  "by_file": {
+    "src\\components\\EventDetailModal.js": 2,
+    "src\\components\\VirtualEventDisplay.js": 1,
+    "src\\components\\VirtualEventList.js": 1
+  },
+  "summary": {
+    "total_files_analyzed": 77,
+    "total_api_calls": 4,
+    "unique_endpoints": 3,
+    "most_used_method": "GET",
+    "most_used_file": "src\\components\\EventDetailModal.js"
+  }
+}

@@ -1,0 +1,4 @@
+URL,Method,Type,Count,Files
+/api/streaming/${event.id}/join/,POST,direct_call,6,"src\components\VirtualEventDisplay.js; src\components\VirtualEventDisplay.js; src\components\VirtualEventDisplay.js; src\components\VirtualEventList.js; src\components\VirtualEventList.js; src\components\VirtualEventList.js"
+/api/admin/events/${eventId}/export_csv/,GET,direct_call,3,"src\components\EventDetailModal.js; src\components\EventDetailModal.js; src\components\EventDetailModal.js"
+/api/admin/events/${eventId}/export_excel/,GET,direct_call,3,"src\components\EventDetailModal.js; src\components\EventDetailModal.js; src\components\EventDetailModal.js"
