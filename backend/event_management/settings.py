@@ -145,10 +145,12 @@ REST_FRAMEWORK = {
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "https://event-management-system-three-bay.vercel.app",
+    "https://event-management-system-git-main-moutails-projects.vercel.app",  # Nouveau domaine
     "https://event-management-frontend.vercel.app", 
     "https://event-management-frontend-git-main.vercel.app",
     "https://event-management-frontend-git-develop.vercel.app",
     "https://*.vercel.app",  # Tous les sous-domaines Vercel
+    "https://*.moutails-projects.vercel.app",  # Tous les projets de votre compte
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
