@@ -2,10 +2,16 @@ services:
   - type: web
     name: event-management-backend
     env: python
-    buildCommand: pip install -r requirements-minimal.txt && python manage.py collectstatic --noinput && python manage.py migrate
+    plan: free
+    buildCommand: chmod +x build.sh && ./build.sh
     startCommand: gunicorn event_management.wsgi:application
     envVars:
-      - key: DJANGO_SETTINGS_MODULE
-        value: event_management.settings_render
       - key: PYTHON_VERSION
-        value: 3.10.12
+        value: 3.11.0
+      - key: DJANGO_SETTINGS_MODULE
+        value: event_management.settings
+      - key: DEBUG
+        value: False
+      - key: ALLOWED_HOSTS
+        value: event-management-backend-7uux.onrender.com
+    healthCheckPath: /api/
