@@ -29,8 +29,9 @@
   },
   "scripts": {
     "start": "set PORT=3001 && craco start",
-    "build": "set GENERATE_SOURCEMAP=false && craco build",
-    "build:vercel": "set GENERATE_SOURCEMAP=false && craco build",
+    "build": "GENERATE_SOURCEMAP=false craco build",
+    "build:vercel": "GENERATE_SOURCEMAP=false craco build",
+    "vercel-build": "GENERATE_SOURCEMAP=false craco build",
     "build:dev": "craco build",
     "test": "craco test",
     "eject": "react-scripts eject"
