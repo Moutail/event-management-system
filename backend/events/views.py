@@ -63,6 +63,16 @@ class EventViewSet(viewsets.ModelViewSet):
         """Définir l'organisateur lors de la création d'un événement"""
         serializer.save(organizer=self.request.user)
 
+    @action(detail=False, methods=['get'])
+    def my_events(self, request):
+        """Récupérer les événements de l'utilisateur connecté"""
+        if not request.user.is_authenticated:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        events = Event.objects.filter(organizer=request.user).order_by('-created_at')
+        serializer = EventSerializer(events, many=True)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['post'])
     def register(self, request, pk=None):
         """Inscription à un événement"""
@@ -79,8 +89,7 @@ class EventViewSet(viewsets.ModelViewSet):
         # Créer l'inscription
         registration = EventRegistration.objects.create(
             event=event,
-            user=user,
-            registration_date=timezone.now()
+            user=user
         )
         
         serializer = EventRegistrationSerializer(registration)
@@ -363,7 +372,7 @@ def super_admin_export_registrations_csv(request, event_id):
         writer.writerow([
             reg.user.username,
             reg.user.email,
-            reg.registration_date,
+            reg.registered_at,
             reg.status
         ])
     
