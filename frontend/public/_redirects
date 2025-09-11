@@ -1,0 +1,11 @@
+# Redirection pour SPA (Single Page Application)
+# Toutes les routes non-API redirigent vers index.html
+
+# API routes - ne pas rediriger
+/api/* https://event-management-backend-7uux.onrender.com/api/:splat 200
+
+# Media routes - ne pas rediriger  
+/media/* https://event-management-backend-7uux.onrender.com/media/:splat 200
+
+# Toutes les autres routes vers index.html pour le routing SPA
+/* /index.html 200
