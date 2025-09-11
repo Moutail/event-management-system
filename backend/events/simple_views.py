@@ -3,7 +3,7 @@ Vues simplifiées pour éviter les erreurs 500
 """
 from rest_framework import viewsets, status
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Q
 from .models import Event, Category, Tag, EventRegistration
 from .simple_serializers import (
@@ -18,14 +18,37 @@ class SimpleEventViewSet(viewsets.ModelViewSet):
     serializer_class = SimpleEventSerializer
     permission_classes = [AllowAny]
     
+    def get_permissions(self):
+        """
+        Instancie et retourne la liste des permissions que cette vue nécessite.
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [IsAuthenticated]
+        else:
+            permission_classes = [AllowAny]
+        return [permission() for permission in permission_classes]
+    
     def get_queryset(self):
         """Retourner seulement les événements publics pour éviter les erreurs"""
         try:
-            queryset = Event.objects.filter(is_public=True, status='published')
+            if self.action == 'list':
+                queryset = Event.objects.filter(is_public=True, status='published')
+            else:
+                queryset = Event.objects.all()
             return queryset.order_by('-created_at')
         except Exception as e:
             # En cas d'erreur, retourner un queryset vide
             return Event.objects.none()
+    
+    def perform_create(self, serializer):
+        """Définir l'organisateur lors de la création d'un événement"""
+        if self.request.user.is_authenticated:
+            serializer.save(organizer=self.request.user)
+        else:
+            return Response(
+                {'error': 'Authentication required to create events'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
     
     def list(self, request, *args, **kwargs):
         """Liste des événements avec gestion d'erreur"""

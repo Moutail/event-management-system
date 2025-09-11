@@ -14,9 +14,9 @@ class SimpleEventSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'short_description', 'event_type',
             'start_date', 'end_date', 'location', 'address', 'is_public',
             'status', 'max_capacity', 'current_registrations', 'price',
-            'created_at', 'updated_at'
+            'organizer', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'current_registrations']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'current_registrations', 'organizer']
 
 
 class SimpleCategorySerializer(serializers.ModelSerializer):
