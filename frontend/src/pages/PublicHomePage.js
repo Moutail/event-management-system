@@ -15,7 +15,6 @@ import {
   AppBar,
   Toolbar,
   useTheme,
-  useMediaQuery,
   IconButton,
   Menu,
   MenuItem,
@@ -45,7 +44,6 @@ import { toggleDarkMode } from '../store/slices/uiSlice';
 const PublicHomePage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const theme = useTheme();
   const { isAuthenticated, user } = useSelector((state) => state.auth);
   const { darkMode } = useSelector((state) => state.ui);
   const [events, setEvents] = useState([]);

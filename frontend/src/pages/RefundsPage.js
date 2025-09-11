@@ -23,7 +23,6 @@ import {
   Info as InfoIcon,
 } from '@mui/icons-material';
 import RefundManagement from '../components/RefundManagement';
-import { useLocale } from '../hooks/useLocale';
 import api from '../services/api';
 
 const RefundsPage = () => {

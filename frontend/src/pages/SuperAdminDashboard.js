@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -74,19 +74,7 @@ const SuperAdminDashboard = () => {
   const [userCreationModal, setUserCreationModal] = useState(false);
   const [eventDetailModal, setEventDetailModal] = useState({ open: false, eventId: null });
 
-  useEffect(() => {
-    loadDashboardData();
-    
-    // Écouteur pour ouvrir le modal de création d'utilisateur
-    const handleOpenUserCreation = () => setUserCreationModal(true);
-    window.addEventListener('openUserCreation', handleOpenUserCreation);
-    
-    return () => {
-      window.removeEventListener('openUserCreation', handleOpenUserCreation);
-    };
-  }, [loadDashboardData]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -131,7 +119,19 @@ const SuperAdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+    
+    // Écouteur pour ouvrir le modal de création d'utilisateur
+    const handleOpenUserCreation = () => setUserCreationModal(true);
+    window.addEventListener('openUserCreation', handleOpenUserCreation);
+    
+    return () => {
+      window.removeEventListener('openUserCreation', handleOpenUserCreation);
+    };
+  }, [loadDashboardData]);
 
 
   const handleUserCreated = (newUser) => {
