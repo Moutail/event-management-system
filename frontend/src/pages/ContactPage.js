@@ -22,6 +22,7 @@ import {
   Send as SendIcon,
   Support as SupportIcon,
 } from '@mui/icons-material';
+import PublicHeader from '../components/Layout/PublicHeader';
 
 const ContactPage = () => {
   const theme = useTheme();
@@ -41,19 +42,19 @@ const ContactPage = () => {
     {
       icon: <EmailIcon sx={{ fontSize: 40, color: 'primary.main' }} />,
       title: 'Email',
-      value: 'contact@gestion-evenements.com',
+      value: 'kossiemmanueldovon@gmail.com',
       description: 'Réponse sous 24h',
     },
     {
       icon: <PhoneIcon sx={{ fontSize: 40, color: 'primary.main' }} />,
       title: 'Téléphone',
-      value: '+33 1 23 45 67 89',
+      value: '+1 5146212053',
       description: 'Lun-Ven: 9h-18h',
     },
     {
       icon: <LocationIcon sx={{ fontSize: 40, color: 'primary.main' }} />,
       title: 'Adresse',
-      value: '123 Rue de l\'Innovation, 75001 Paris',
+      value: '1514 av Saint Laurent',
       description: 'Siège social',
     },
     {
@@ -131,8 +132,10 @@ const ContactPage = () => {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pt: 8, pb: 6 }}>
-      <Container maxWidth="lg">
+    <>
+      <PublicHeader />
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pt: 8, pb: 6 }}>
+        <Container maxWidth="lg">
         {/* En-tête de la page */}
         <Box sx={{ textAlign: 'center', mb: 6 }}>
           <Typography
@@ -491,7 +494,7 @@ const ContactPage = () => {
                 🎯 Demande urgente
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Pour les demandes urgentes, appelez-nous directement au +33 1 23 45 67 89.
+                Pour les demandes urgentes, appelez-nous directement au +1 5146212053.
               </Typography>
             </Grid>
           </Grid>
@@ -513,8 +516,9 @@ const ContactPage = () => {
             {snackbar.message}
           </Alert>
         </Snackbar>
-      </Container>
-    </Box>
+        </Container>
+      </Box>
+    </>
   );
 };
 

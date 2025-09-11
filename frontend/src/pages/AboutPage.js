@@ -18,6 +18,7 @@ import {
   Support as SupportIcon,
   TrendingUp as TrendingUpIcon,
 } from '@mui/icons-material';
+import PublicHeader from '../components/Layout/PublicHeader';
 
 const AboutPage = () => {
   const theme = useTheme();
@@ -74,8 +75,10 @@ const AboutPage = () => {
   ];
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pt: 8, pb: 6 }}>
-      <Container maxWidth="lg">
+    <>
+      <PublicHeader />
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', pt: 8, pb: 6 }}>
+        <Container maxWidth="lg">
         {/* En-tête de la page */}
         <Box sx={{ textAlign: 'center', mb: 6 }}>
           <Typography
@@ -238,7 +241,7 @@ const AboutPage = () => {
               opacity: 0.95,
             }}
           >
-            Fondée en 2024, notre plateforme est née de la constatation que la gestion d'événements 
+            Fondée en 2025, notre plateforme est née de la constatation que la gestion d'événements 
             traditionnelle était souvent complexe et chronophage. Nous avons développé une solution 
             moderne qui combine simplicité d'utilisation et fonctionnalités avancées, permettant aux 
             organisateurs de se concentrer sur ce qui compte vraiment : créer des expériences 
@@ -370,8 +373,9 @@ const AboutPage = () => {
             🚀 Commencez votre aventure dès aujourd'hui !
           </Typography>
         </Paper>
-      </Container>
-    </Box>
+        </Container>
+      </Box>
+    </>
   );
 };
 

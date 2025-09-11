@@ -9,7 +9,6 @@ import {
   Avatar,
   Menu,
   MenuItem,
-  Badge,
   useTheme,
   useMediaQuery,
   Drawer,
@@ -21,7 +20,6 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Notifications as NotificationsIcon,
   Brightness4,
   Brightness7,
   AccountCircle,
@@ -190,20 +188,6 @@ const Header = () => {
             {darkMode ? <Brightness7 /> : <Brightness4 />}
           </IconButton>
 
-          <IconButton 
-            color="inherit"
-            sx={{
-              '&:hover': {
-                backgroundColor: 'rgba(255,255,255,0.15)',
-                transform: 'scale(1.05)',
-              },
-              transition: 'all 0.2s ease-in-out',
-            }}
-          >
-            <Badge badgeContent={4} color="error">
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
 
           <Button 
             color="inherit" 

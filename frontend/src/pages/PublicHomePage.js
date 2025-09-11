@@ -20,7 +20,6 @@ import {
   Menu,
   MenuItem,
   Avatar,
-  Badge,
 } from '@mui/material';
 import {
   Event as EventIcon,
@@ -35,7 +34,6 @@ import {
   Logout as LogoutIcon,
   Brightness4 as ThemeIcon,
   Brightness7 as Brightness7Icon,
-  Notifications as NotificationsIcon,
   Info as InfoIcon,
   ContactSupport as ContactIcon,
 } from '@mui/icons-material';
@@ -77,10 +75,6 @@ const PublicHomePage = () => {
     dispatch(toggleDarkMode());
   };
 
-  const handleNotifications = () => {
-    // TODO: Implémenter la gestion des notifications
-    console.log('Notifications');
-  };
 
   const handleEvents = () => {
     // 🎯 NOUVELLE LOGIQUE : Permettre aux visiteurs de voir tous les événements
@@ -187,20 +181,6 @@ const PublicHomePage = () => {
               {darkMode ? <Brightness7Icon /> : <ThemeIcon />}
             </IconButton>
 
-            {/* Icône notifications avec badge */}
-            <IconButton
-              onClick={handleNotifications}
-              sx={{
-                color: 'white',
-                '&:hover': {
-                  backgroundColor: 'rgba(255,255,255,0.15)',
-                },
-              }}
-            >
-              <Badge badgeContent={4} color="error">
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
 
             {/* Icône événements */}
             <IconButton
