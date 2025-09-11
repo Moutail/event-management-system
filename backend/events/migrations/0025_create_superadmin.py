@@ -30,15 +30,15 @@ def create_superadmin(apps, schema_editor):
     try:
         profile = UserProfile.objects.get(user=user)
         profile.role = 'super_admin'
-        profile.phone_number = '+1234567890'
-        profile.bio = 'Super administrateur'
+        profile.phone = '+1234567890'
+        profile.country = 'FR'
         profile.save()
     except UserProfile.DoesNotExist:
         UserProfile.objects.create(
             user=user,
             role='super_admin',
-            phone_number='+1234567890',
-            bio='Super administrateur'
+            phone='+1234567890',
+            country='FR'
         )
 
 
