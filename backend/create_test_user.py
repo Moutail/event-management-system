@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Script pour créer un utilisateur de test avec un mot de passe connu
+Script pour créer un utilisateur de test pour l'authentification
 """
 import os
 import django
@@ -13,54 +13,69 @@ from django.contrib.auth.models import User
 from events.models import UserProfile
 
 def create_test_user():
-    """Créer un utilisateur de test avec un mot de passe connu"""
+    """Créer un utilisateur de test pour l'authentification"""
+    print("🔧 Création d'un utilisateur de test...")
+    
+    # Créer l'utilisateur admin s'il n'existe pas
+    username = "admin"
+    password = "admin123"
+    email = "admin@test.com"
+    
     try:
-        # Créer l'utilisateur
-        user, created = User.objects.get_or_create(
-            username='testadmin',
-            defaults={
-                'email': 'testadmin@example.com',
-                'first_name': 'Test',
-                'last_name': 'Admin',
-                'is_staff': True,
-                'is_superuser': False
-            }
+        user = User.objects.get(username=username)
+        print(f"✅ Utilisateur {username} existe déjà")
+    except User.DoesNotExist:
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password
         )
-        
-        if created:
-            # Définir le mot de passe
-            user.set_password('test123')
-            user.save()
-            print(f"✅ Utilisateur créé: {user.username}")
-        else:
-            # Mettre à jour le mot de passe
-            user.set_password('test123')
-            user.save()
-            print(f"✅ Mot de passe mis à jour pour: {user.username}")
-        
-        # Créer ou mettre à jour le profil
-        profile, created = UserProfile.objects.get_or_create(
+        print(f"✅ Utilisateur {username} créé avec succès")
+    
+    # Créer le profil utilisateur
+    try:
+        profile = UserProfile.objects.get(user=user)
+        print(f"✅ Profil utilisateur existe déjà")
+    except UserProfile.DoesNotExist:
+        profile = UserProfile.objects.create(
             user=user,
-            defaults={
-                'role': 'super_admin',
-                'phone': ''
-            }
+            role='super_admin',
+            phone_number='+1234567890',
+            bio='Super administrateur de test'
         )
+        print(f"✅ Profil utilisateur créé")
+    
+    # Créer aussi un utilisateur normal
+    normal_username = "testuser"
+    normal_password = "test123"
+    
+    try:
+        normal_user = User.objects.get(username=normal_username)
+        print(f"✅ Utilisateur {normal_username} existe déjà")
+    except User.DoesNotExist:
+        normal_user = User.objects.create_user(
+            username=normal_username,
+            email="test@test.com",
+            password=normal_password
+        )
+        print(f"✅ Utilisateur {normal_username} créé avec succès")
         
-        if created:
-            print(f"✅ Profil Super Admin créé pour {user.username}")
-        else:
-            profile.role = 'super_admin'
-            profile.save()
-            print(f"✅ Profil Super Admin mis à jour pour {user.username}")
-            
-        print(f"👑 Utilisateur: {user.username}")
-        print(f"📧 Email: {user.email}")
-        print(f"🔑 Mot de passe: test123")
-        print(f"🔑 Rôle: {profile.role}")
-        
-    except Exception as e:
-        print(f"❌ Erreur: {e}")
+        # Créer le profil
+        try:
+            normal_profile = UserProfile.objects.get(user=normal_user)
+        except UserProfile.DoesNotExist:
+            normal_profile = UserProfile.objects.create(
+                user=normal_user,
+                role='user',
+                phone_number='+1234567891',
+                bio='Utilisateur de test'
+            )
+            print(f"✅ Profil utilisateur normal créé")
+    
+    print("\n🎯 Utilisateurs de test créés :")
+    print(f"   👑 Super Admin: {username} / {password}")
+    print(f"   👤 Utilisateur: {normal_username} / {normal_password}")
+    print("\n✅ Vous pouvez maintenant vous connecter avec ces identifiants !")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     create_test_user()

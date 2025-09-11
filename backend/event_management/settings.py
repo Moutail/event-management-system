@@ -141,9 +141,29 @@ REST_FRAMEWORK = {
     ],
 }
 
-# CORS configuration - CONFIGURATION SIMPLE
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS configuration - CONFIGURATION POUR PRODUCTION
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = [
+    "https://event-management-system-three-bay.vercel.app",
+    "https://event-management-frontend.vercel.app", 
+    "https://event-management-frontend-git-main.vercel.app",
+    "https://event-management-frontend-git-develop.vercel.app",
+    "https://*.vercel.app",  # Tous les sous-domaines Vercel
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # JWT Settings - CONFIGURATION SIMPLE
 from datetime import timedelta

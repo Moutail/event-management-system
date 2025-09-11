@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import (
 )
 from . import views
 from . import ai_views
+from .simple_views import SimpleEventViewSet, SimpleCategoryViewSet, SimpleTagViewSet, SimpleEventRegistrationViewSet
 from .views import (
     EventViewSet, CategoryViewSet, TagViewSet,
     EventRegistrationViewSet, EventHistoryViewSet, register_user, get_current_user, change_password, update_profile,
@@ -29,12 +30,12 @@ from .streaming_views import (
     configure_stream, start_stream, pause_stream, stop_stream, join_stream
 )
 
-# Configuration du routeur
+# Configuration du routeur - Utilisation des vues simplifiées pour éviter les erreurs 500
 router = DefaultRouter()
-router.register(r'events', EventViewSet, basename='event')
-router.register(r'categories', CategoryViewSet, basename='category')
-router.register(r'tags', TagViewSet, basename='tag')
-router.register(r'registrations', EventRegistrationViewSet, basename='registration')
+router.register(r'events', SimpleEventViewSet, basename='event')
+router.register(r'categories', SimpleCategoryViewSet, basename='category')
+router.register(r'tags', SimpleTagViewSet, basename='tag')
+router.register(r'registrations', SimpleEventRegistrationViewSet, basename='registration')
 router.register(r'history', EventHistoryViewSet, basename='history')
 router.register(r'admin', SuperAdminViewSet, basename='admin')
 router.register(r'virtual-events', VirtualEventViewSet, basename='virtual_event')
