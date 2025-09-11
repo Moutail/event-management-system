@@ -59,6 +59,10 @@ class EventViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(is_public=True)
         return queryset
 
+    def perform_create(self, serializer):
+        """Définir l'organisateur lors de la création d'un événement"""
+        serializer.save(organizer=self.request.user)
+
     @action(detail=True, methods=['post'])
     def register(self, request, pk=None):
         """Inscription à un événement"""

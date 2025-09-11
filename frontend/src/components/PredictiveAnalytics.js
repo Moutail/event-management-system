@@ -350,9 +350,24 @@ const PredictiveAnalytics = () => {
               {analytics?.insights?.global_insights?.length > 0 ? (
                 <Box>
                   {analytics.insights.global_insights.map((insight, index) => (
-                    <Typography key={index} variant="body2" sx={{ mb: 1 }}>
-                      {insight}
-                    </Typography>
+                    <Box key={index} sx={{ mb: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        {insight.title || insight}
+                      </Typography>
+                      {typeof insight === 'object' && insight.value && (
+                        <Typography variant="body2" color="text.secondary">
+                          {insight.value}
+                        </Typography>
+                      )}
+                      {typeof insight === 'object' && insight.trend && (
+                        <Chip
+                          label={insight.trend === 'up' ? '↗️ Croissance' : '↘️ Baisse'}
+                          color={insight.trend === 'up' ? 'success' : 'error'}
+                          size="small"
+                          sx={{ mt: 1 }}
+                        />
+                      )}
+                    </Box>
                   ))}
                 </Box>
               ) : (
