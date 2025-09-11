@@ -1,10 +1,32 @@
 {
   "version": 2,
-  "buildCommand": "GENERATE_SOURCEMAP=false npm run build",
-  "outputDirectory": "build",
-  "installCommand": "npm ci",
-  "framework": "create-react-app",
-  "public": true,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "https://event-management-backend-7uux.onrender.com/api/$1"
+    },
+    {
+      "src": "/media/(.*)",
+      "dest": "https://event-management-backend-7uux.onrender.com/media/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
   "env": {
     "REACT_APP_API_URL": "https://event-management-backend-7uux.onrender.com/api",
     "REACT_APP_BASE_URL": "https://event-management-backend-7uux.onrender.com",
@@ -14,30 +36,5 @@
     "REACT_APP_SOCIAL_AUTH_FAILURE_URL": "/login?error=social_auth_failed",
     "REACT_APP_DEBUG_MODE": "false",
     "GENERATE_SOURCEMAP": "false"
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "https://event-management-backend-7uux.onrender.com/api/$1"
-    },
-    {
-      "source": "/media/(.*)",
-      "destination": "https://event-management-backend-7uux.onrender.com/media/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/static/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    }
-  ]
+  }
 }
