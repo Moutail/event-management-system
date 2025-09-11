@@ -236,9 +236,10 @@ const ContactPage = () => {
           </Grid>
         </Box>
 
-        {/* Formulaire de contact et sujets de support */}
+        {/* Formulaire de contact et sujets de support - FORMULAIRE CACHÉ */}
         <Grid container spacing={4}>
-          {/* Formulaire de contact */}
+          {/* Formulaire de contact - CACHÉ */}
+          {/* 
           <Grid item xs={12} lg={8}>
             <Paper
               elevation={0}
@@ -359,6 +360,7 @@ const ContactPage = () => {
               </Box>
             </Paper>
           </Grid>
+          */}
 
           {/* Sujets de support */}
           <Grid item xs={12} lg={4}>

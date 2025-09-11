@@ -36,7 +36,6 @@ import {
   Save as SaveIcon,
   Cancel as CancelIcon,
   Security as SecurityIcon,
-  Notifications as NotificationsIcon,
   Palette as PaletteIcon,
   Language as LanguageIcon,
 } from '@mui/icons-material';
@@ -61,8 +60,6 @@ const ProfilePage = () => {
   });
 
   const [settings, setSettings] = useState({
-    emailNotifications: true,
-    pushNotifications: true,
     language: 'fr',
     timezone: 'Europe/Paris',
   });
@@ -464,39 +461,7 @@ const ProfilePage = () => {
             </Typography>
 
             <Grid container spacing={3}>
-              {/* Notifications */}
-              <Grid item xs={12} md={6}>
-                <Card variant="outlined">
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <NotificationsIcon sx={{ mr: 1, color: 'primary.main' }} />
-                      <Typography variant="h6">
-                        Notifications
-                      </Typography>
-                    </Box>
-                    
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={settings.emailNotifications}
-                          onChange={(e) => handleSettingChange('emailNotifications', e.target.checked)}
-                        />
-                      }
-                      label="Notifications par email"
-                    />
-                    
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={settings.pushNotifications}
-                          onChange={(e) => handleSettingChange('pushNotifications', e.target.checked)}
-                        />
-                      }
-                      label="Notifications push"
-                    />
-                  </CardContent>
-                </Card>
-              </Grid>
+              {/* Notifications - SUPPRIMÉ */}
 
               {/* Apparence */}
               <Grid item xs={12} md={6}>

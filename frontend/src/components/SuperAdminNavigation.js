@@ -6,7 +6,6 @@ import {
   Typography,
   Button,
   IconButton,
-  Badge,
   Avatar,
   Menu,
   MenuItem,
@@ -22,7 +21,6 @@ import {
   TrendingUp as AnalyticsIcon,
   Category as CategoryIcon,
   Settings as SettingsIcon,
-  Notifications as NotificationsIcon,
   AccountCircle as AccountIcon,
   Logout as LogoutIcon,
   Psychology as AIIcon
@@ -129,15 +127,8 @@ const SuperAdminNavigation = ({
           })}
         </Box>
 
-        {/* Notifications et profil */}
+        {/* Profil */}
         <Box display="flex" alignItems="center" gap={1}>
-          <IconButton color="inherit" size="large">
-            <Badge badgeContent={notifications} color="error">
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
-
-          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
 
           <Box display="flex" alignItems="center" gap={1}>
             <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
