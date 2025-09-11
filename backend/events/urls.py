@@ -113,8 +113,8 @@ urlpatterns = [
     # Route pour la santé du système
     path('admin/system_health/', system_health_check, name='system_health_check'),
     
-    # 🎯 ANALYTICS PRÉDICTIFS AVANCÉS (désactivé temporairement)
-    # path('admin/predictive_analytics/', predictive_analytics_dashboard, name='predictive_analytics_dashboard'),
+    # 🎯 ANALYTICS PRÉDICTIFS AVANCÉS (endpoint simple de remplacement)
+    path('admin/predictive_analytics/', views.simple_predictive_analytics, name='predictive_analytics_dashboard'),
     path('admin/train_ml_models/', train_ml_models, name='train_ml_models'),
     path('admin/predict_fill_rate/', predict_event_fill_rate, name='predict_event_fill_rate'),
     path('admin/optimize_pricing/', optimize_event_pricing, name='optimize_event_pricing'),

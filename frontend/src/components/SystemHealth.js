@@ -145,9 +145,11 @@ const SystemHealth = () => {
     );
   }
 
-  const overallHealth = Object.values(systemHealth.system_health).every(status => status);
-  const healthScore = (Object.values(systemHealth.system_health).filter(status => status).length / 
-                      Object.keys(systemHealth.system_health).length) * 100;
+  const systemHealthData = systemHealth?.system_health || {};
+  const overallHealth = Object.values(systemHealthData).every(status => status);
+  const healthScore = Object.keys(systemHealthData).length > 0 
+    ? (Object.values(systemHealthData).filter(status => status).length / Object.keys(systemHealthData).length) * 100
+    : 0;
 
   return (
     <Box>
