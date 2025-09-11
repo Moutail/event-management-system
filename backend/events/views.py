@@ -175,8 +175,34 @@ def get_current_user(request):
     """Obtenir les informations de l'utilisateur actuel"""
     try:
         profile = UserProfile.objects.get(user=request.user)
-        serializer = UserProfileSerializer(profile)
-        return Response(serializer.data)
+        
+        # Structure attendue par le frontend
+        user_data = {
+            'id': request.user.id,
+            'username': request.user.username,
+            'first_name': request.user.first_name,
+            'last_name': request.user.last_name,
+            'email': request.user.email,
+            'is_superuser': request.user.is_superuser,
+            'is_staff': request.user.is_staff,
+            'is_active': request.user.is_active,
+            'date_joined': request.user.date_joined.isoformat() if request.user.date_joined else None,
+            'last_login': request.user.last_login.isoformat() if request.user.last_login else None,
+            'profile': {
+                'id': profile.id,
+                'phone': profile.phone,
+                'country': profile.country,
+                'role': profile.role,
+                'role_display': profile.get_role_display(),
+                'status_approval': profile.status_approval,
+                'status_approval_display': profile.get_status_approval_display(),
+                'approval_date': profile.approval_date.isoformat() if profile.approval_date else None,
+                'approved_by': profile.approved_by_id,
+                'rejection_reason': profile.rejection_reason
+            }
+        }
+        
+        return Response(user_data)
     except UserProfile.DoesNotExist:
         return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
 
