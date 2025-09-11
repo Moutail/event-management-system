@@ -45,9 +45,11 @@ api.interceptors.request.use(
     const token = getCurrentSessionToken();
     if (token) {
       console.log('🔑 [API] Token ajouté au header pour:', config.url);
+      console.log('🔑 [API] Token (premiers caractères):', token.substring(0, 20) + '...');
       config.headers.Authorization = `Bearer ${token}`;
     } else {
       console.log('⚠️ [API] Aucun token trouvé pour:', config.url);
+      console.log('⚠️ [API] Headers actuels:', config.headers);
     }
     return config;
   },

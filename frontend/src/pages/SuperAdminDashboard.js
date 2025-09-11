@@ -84,18 +84,40 @@ const SuperAdminDashboard = () => {
         const statsResponse = await api.get('/admin/global_stats/');
         const statsData = statsResponse.data;
         
-        // Formater les statistiques pour l'affichage
-        const formattedStats = {
-          total_users: statsData.general_stats.total_users,
-          total_events: statsData.general_stats.total_events,
-          total_registrations: statsData.general_stats.total_registrations,
-          total_revenue: statsData.general_stats.total_revenue,
-          active_users: statsData.general_stats.active_users,
-          pending_approvals: statsData.general_stats.pending_events,
-          pending_refunds: 0 // À implémenter si nécessaire
-        };
+        console.log('📊 Données reçues de l\'API:', statsData);
         
-        setStats(formattedStats);
+        // Vérifier la structure des données
+        if (!statsData) {
+          throw new Error('Aucune donnée reçue de l\'API');
+        }
+        
+        if (!statsData.general_stats) {
+          console.warn('⚠️ Structure de données inattendue:', statsData);
+          // Essayer de formater avec la structure directe
+          const formattedStats = {
+            total_users: statsData.total_users || 0,
+            total_events: statsData.total_events || 0,
+            total_registrations: statsData.total_registrations || 0,
+            total_revenue: statsData.total_revenue || 0,
+            active_users: statsData.total_users || 0,
+            pending_approvals: statsData.pending_events || 0,
+            pending_refunds: statsData.total_refunds || 0
+          };
+          setStats(formattedStats);
+        } else {
+          // Formater les statistiques pour l'affichage
+          const formattedStats = {
+            total_users: statsData.general_stats?.total_users || 0,
+            total_events: statsData.general_stats?.total_events || 0,
+            total_registrations: statsData.general_stats?.total_registrations || 0,
+            total_revenue: statsData.general_stats?.total_revenue || 0,
+            active_users: statsData.general_stats?.total_users || 0, // Utiliser total_users comme active_users
+            pending_approvals: statsData.general_stats?.pending_events || 0,
+            pending_refunds: statsData.general_stats?.total_refunds || 0
+          };
+          
+          setStats(formattedStats);
+        }
         
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
@@ -158,6 +180,26 @@ const SuperAdminDashboard = () => {
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <CircularProgress />
       </Box>
+    );
+  }
+
+  // Protection contre les erreurs de rendu
+  if (!stats) {
+    return (
+      <Container maxWidth="xl" sx={{ py: 4 }}>
+        <Box display="flex" flexDirection="column" alignItems="center" gap={2}>
+          <Typography variant="h5" color="error">
+            Erreur de chargement des données
+          </Typography>
+          <Button 
+            variant="contained" 
+            onClick={loadDashboardData}
+            startIcon={<RefreshIcon />}
+          >
+            Réessayer
+          </Button>
+        </Box>
+      </Container>
     );
   }
 

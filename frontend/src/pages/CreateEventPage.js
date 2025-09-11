@@ -157,6 +157,14 @@ const CreateEventPage = () => {
     console.log('=== DEBUG: Données du formulaire ===');
     console.log('Données:', data);
     console.log('Tags sélectionnés:', selectedTags);
+    
+    // Vérifier l'authentification
+    const token = localStorage.getItem('access_token') || sessionStorage.getItem('access_token');
+    console.log('🔑 Token d\'authentification:', token ? 'PRÉSENT' : 'ABSENT');
+    
+    // Vérifier l'utilisateur connecté
+    const user = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || 'null');
+    console.log('👤 Utilisateur connecté:', user);
 
     // Forcer le type d'événement à 'physical' pour ce formulaire
     data.event_type = 'physical';
