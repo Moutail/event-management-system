@@ -1,1 +1,1 @@
-# Package management pour events
+# Management commands
