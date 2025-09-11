@@ -37,5 +37,10 @@
     "REACT_APP_SOCIAL_AUTH_FAILURE_URL": "/login?error=social_auth_failed",
     "REACT_APP_DEBUG_MODE": "false",
     "GENERATE_SOURCEMAP": "false"
+  },
+  "build": {
+    "env": {
+      "GENERATE_SOURCEMAP": "false"
+    }
   }
 }

@@ -10,7 +10,6 @@ import {
   Card,
   CardContent,
   CardHeader,
-  Chip,
   Divider,
   CircularProgress,
 } from '@mui/material';
@@ -32,7 +31,6 @@ const RefundsPage = () => {
   const [refunds, setRefunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { formatPrice } = useLocale();
 
   // Charger les remboursements au montage de la page
   useEffect(() => {

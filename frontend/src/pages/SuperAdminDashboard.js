@@ -23,7 +23,6 @@ import {
   TrendingUp as TrendingIcon,
   Refresh as RefreshIcon,
   Category as CategoryIcon,
-  LocalOffer as TagIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 
@@ -85,7 +84,7 @@ const SuperAdminDashboard = () => {
     return () => {
       window.removeEventListener('openUserCreation', handleOpenUserCreation);
     };
-  }, []);
+  }, [loadDashboardData]);
 
   const loadDashboardData = async () => {
     try {
@@ -134,10 +133,6 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const handleViewEventDetails = (event) => {
-    console.log('🔍 handleViewEventDetails appelé avec:', event);
-    setEventDetailModal({ open: true, eventId: event.id });
-  };
 
   const handleUserCreated = (newUser) => {
     // Mettre à jour les statistiques

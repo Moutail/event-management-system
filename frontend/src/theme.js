@@ -56,10 +56,7 @@ export const theme = createTheme({
           background: 'rgba(79,70,229,0.2)',
         },
         body: {
-          backgroundImage:
-            'radial-gradient(1200px 800px at 10% 0%, rgba(226,232,240,0.8) 0%, rgba(226,232,240,0) 60%),\
-             radial-gradient(1000px 700px at 90% 10%, rgba(241,245,249,0.8) 0%, rgba(241,245,249,0) 60%),\
-             linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)',
+          backgroundImage: 'radial-gradient(1200px 800px at 10% 0%, rgba(226,232,240,0.8) 0%, rgba(226,232,240,0) 60%), radial-gradient(1000px 700px at 90% 10%, rgba(241,245,249,0.8) 0%, rgba(241,245,249,0) 60%), linear-gradient(180deg, #F8FAFC 0%, #F1F5F9 100%)',
           backgroundAttachment: 'fixed',
         },
       },
@@ -193,10 +190,7 @@ export const darkTheme = createTheme({
       styleOverrides: {
         '::selection': { background: 'rgba(129,140,248,0.3)' },
         body: {
-          backgroundImage:
-            'radial-gradient(1200px 800px at 10% -10%, rgba(129,140,248,0.15) 0%, rgba(129,140,248,0) 60%),\
-             radial-gradient(1000px 700px at 90% -10%, rgba(34,211,238,0.15) 0%, rgba(34,211,238,0) 60%),\
-             linear-gradient(180deg, #0F172A 0%, #1E293B 100%)',
+          backgroundImage: 'radial-gradient(1200px 800px at 10% -10%, rgba(129,140,248,0.15) 0%, rgba(129,140,248,0) 60%), radial-gradient(1000px 700px at 90% -10%, rgba(34,211,238,0.15) 0%, rgba(34,211,238,0) 60%), linear-gradient(180deg, #0F172A 0%, #1E293B 100%)',
           backgroundAttachment: 'fixed',
           color: '#FFFFFF', // Couleur de texte par défaut pour le body
         },
